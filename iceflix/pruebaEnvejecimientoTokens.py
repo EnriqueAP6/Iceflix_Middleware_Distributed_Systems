@@ -30,14 +30,15 @@ def envejeceLista():
             contador += 1
         
         sleep(1)
+        
 
-def compruebaValidezToken(tokenUsuario):
+def isAuthorized(tokenUsuario):
     #después de comprobar sus credenciales
 
     tokenValido = False
 
-    for entrada in lista:
-        if tokenUsuario == entrada[1]:
+    for elemento in lista:
+        if tokenUsuario == elemento[1]:
             tokenValido = True
     return tokenValido
 
@@ -46,9 +47,9 @@ def compruebaValidezToken(tokenUsuario):
 hilo = threading.Thread(target = envejeceLista)
 hilo.start()
 
-print(compruebaValidezToken("token2"))
-print(compruebaValidezToken("token32"))
-print(compruebaValidezToken("token7"))
+print(isAuthorized("token2"))
+print(isAuthorized("token32"))
+print(isAuthorized("token7"))
 
 sleep(3)
 

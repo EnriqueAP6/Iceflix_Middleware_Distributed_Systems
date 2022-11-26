@@ -1,11 +1,11 @@
 import io
 
-def escribirArchivo(nombreArchivo, lineasEscribir):
+def introducirDatoArchivo(nombreArchivo, lineaEscribir):
     
     archivoEscribir = open(nombreArchivo,"w")
-    for linea in lineasEscribir:
-        archivoEscribir.write(linea[0]+"\n")
-        archivoEscribir.write(linea[1]+"\n")
+    
+    archivoEscribir.write(lineaEscribir[0]+"\n")
+    archivoEscribir.write(lineaEscribir[1]+"\n")
 
     archivoEscribir.close()
 
@@ -34,9 +34,6 @@ def compruebaCredenciales(nombreArchivo, user, password):
                 credencialesValidas = True
     
     return credencialesValidas
-            
-
-
 
 
 nombreArchivo = "bbddCredenciales.txt"
@@ -47,8 +44,14 @@ lineasEscribir.append(("eap_6","102030"))
 lineasEscribir.append(("efjvdj","odiewsnjd"))
 lineasEscribir.append(("user","password"))
 
-escribirArchivo(nombreArchivo, lineasEscribir)
-contenidoArchivo = leerArchivo(nombreArchivo)
+introducirDatoArchivo(nombreArchivo, "EnriqueAP6")
+introducirDatoArchivo(nombreArchivo, "010203")
+introducirDatoArchivo(nombreArchivo, "eap_6")
+introducirDatoArchivo(nombreArchivo, "102030")
+introducirDatoArchivo(nombreArchivo, "efjvdj")
+introducirDatoArchivo(nombreArchivo, "odiewsnjd")
+introducirDatoArchivo(nombreArchivo, "user")
+introducirDatoArchivo(nombreArchivo, "password")
 
 print(compruebaCredenciales(nombreArchivo,"eap_6","102030"))
 print(compruebaCredenciales(nombreArchivo,"eap_6","password"))
