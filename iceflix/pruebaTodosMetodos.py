@@ -25,13 +25,9 @@ def envejeceLista():
 
 def introducirDatoArchivo(lineaEscribir):
     
-    archivoEscribir = open(nombreArchivo,"w")
-    
-    archivoEscribir.write(lineaEscribir[0]+"\n")
-    archivoEscribir.write(lineaEscribir[1]+"\n")
-
+    archivoEscribir = open(nombreArchivo,"a")
+    archivoEscribir.write(lineaEscribir+"\n")
     archivoEscribir.close()
-
         
 def compruebaCredenciales(nombreArchivo, user, password):
 
@@ -41,23 +37,11 @@ def compruebaCredenciales(nombreArchivo, user, password):
     lineasLeidas = archivoLeer.readlines()
 
     for numLinea in range(len(lineasLeidas)):
-
         if user == lineasLeidas[numLinea][:-1]:
-            if (numLinea +1)<= len(lineasLeidas) and password == lineasLeidas[numLinea+1][:-1]:
+            if (numLinea +1)<= len(lineasLeidas) and password == lineasLeidas[numLinea+1][:-1]: #primera condición evita que falle porque la última contraseña sea igual a un usuario
                 credencialesValidas = True
     
     return credencialesValidas
-
-
-def isAuthorized(tokenUsuario):
-    #después de comprobar sus credenciales
-
-    tokenValido = False
-
-    for elemento in listaTokens:
-        if tokenUsuario == elemento[1]:
-            tokenValido = True
-    return tokenValido
 
 
 def asociaUsuarioToken(user):
@@ -75,15 +59,44 @@ def asociaUsuarioToken(user):
             break
         contadorPosicion += 1
 
-    return tokenUsuario,contadorTokensCreados
+    return tokenUsuario
 
 
 def refreshAuthorization(user, passwordHash):
-    
+
     if compruebaCredenciales(nombreArchivo, user, passwordHash):
         tokenNuevo = asociaUsuarioToken(user)
+        return tokenNuevo
+    #else:
+        #raise IceFlix.Unauthorized
+
+
+def isAuthorized(userToken):
+
+    tokenValido = False
+
+    for elemento in listaTokens:
+        if userToken == elemento[1]:
+            tokenValido = True
+    return tokenValido
+
+
+def whois(userToken):
+
+    if isAuthorized(userToken):
+        for elemento in listaTokens:
+            if elemento[1] == userToken:
+                return elemento[0]
+    #else:
+        #raise IceFlix.Unauthorized
+
+
+
+def isAdmin(adminToken):
+    if adminToken == tokenAdministracion:
+        return True
     else:
-        raise IceFlix.Unauthorized
+        return False
 
 
 def imprimeListaTokens():
@@ -96,63 +109,44 @@ def imprimeListaTokens():
 
 
 
-
 if __name__ == "__main__":
 
+    tokenAdministracion = "1234"
     contadorTokensCreados = 0
     tiempoLimite= 15
     listaTokens = []
     nombreArchivo = "bbddCredenciales.txt"
 
-    introducirDatoArchivo("EnriqueAP6")
-    introducirDatoArchivo("010203")
-    introducirDatoArchivo("eap_6")
-    introducirDatoArchivo("102030")
-    introducirDatoArchivo("efjvdj")
-    introducirDatoArchivo("odiewsnjd")
-    introducirDatoArchivo("user")
-    introducirDatoArchivo("password")
+    #introducirDatoArchivo("EnriqueAP6")
+    #introducirDatoArchivo("010203")
+    #introducirDatoArchivo("eap_6")
+    #introducirDatoArchivo("102030")
+    #introducirDatoArchivo("efjvdj")
+    #introducirDatoArchivo("odiewsnjd")
+    #introducirDatoArchivo("user")
+    #introducirDatoArchivo("password")
 
     #ESTO LUEGO LO HARÍA EL adduser()
-    listaTokens.append(['EnriqueAP6','token',10])
-    listaTokens.append(['user2','token',3])
-    listaTokens.append(['eap_6','token',6])
-    listaTokens.append(['user4','token',8])
-    listaTokens.append(['efjvdj','token',5])
-    listaTokens.append(['user6','token',2])
-    listaTokens.append(['user','token',0])
+    listaTokens.append(['EnriqueAP6','token1',10])
+    listaTokens.append(['user2','token2',3])
+    listaTokens.append(['eap_6','token3',6])
+    listaTokens.append(['user4','token4',8])
+    listaTokens.append(['efjvdj','token5',5])
+    listaTokens.append(['user6','token6',2])
+    listaTokens.append(['user','token7',0])
     ######################################
-
-
-
-    tokenNuevo = asociaUsuarioToken('EnriqueAP6')
-    tokenNuevo = asociaUsuarioToken('eap_6')
-    tokenNuevo = asociaUsuarioToken('user')
-    tokenNuevo = asociaUsuarioToken('user4')
-    tokenNuevo = asociaUsuarioToken('efjvdj')
-    tokenNuevo = asociaUsuarioToken('user6')
     
-    imprimeListaTokens()
-    tokenNuevo = asociaUsuarioToken('EnriqueAP6')
-    print()
-    imprimeListaTokens()
+    
 
-#hilo = threading.Thread(target = envejeceLista)
-#hilo.start()
+    #hilo = threading.Thread(target = envejeceLista)
+    #hilo.start()
 
-#print(isAuthorized("token2"))
-#print(isAuthorized("token32"))
-#print(isAuthorized("token7"))
+    #sleep(3)
 
-#sleep(3)
+    #while True:
+    #    listaTokens.append(['user8','token8',11])
+    #    print(isAuthorized("token2"))
+    #    print(isAuthorized("token6"))
+    #    sleep(5)
 
-#while True:
-#    lista.append(['user8','token8',11])
-#    sleep(5)
-
-
-
-#print(compruebaCredenciales(nombreArchivo,"eap_6","102030"))
-#print(compruebaCredenciales(nombreArchivo,"eap_6","password"))
-#print(compruebaCredenciales(nombreArchivo,"user","password"))
 

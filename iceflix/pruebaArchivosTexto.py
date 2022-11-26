@@ -2,11 +2,8 @@ import io
 
 def introducirDatoArchivo(nombreArchivo, lineaEscribir):
     
-    archivoEscribir = open(nombreArchivo,"w")
-    
-    archivoEscribir.write(lineaEscribir[0]+"\n")
-    archivoEscribir.write(lineaEscribir[1]+"\n")
-
+    archivoEscribir = open(nombreArchivo,"a")
+    archivoEscribir.write(lineaEscribir+"\n")
     archivoEscribir.close()
 
 def leerArchivo(nombreArchivo):
@@ -37,12 +34,6 @@ def compruebaCredenciales(nombreArchivo, user, password):
 
 
 nombreArchivo = "bbddCredenciales.txt"
-
-lineasEscribir = []
-lineasEscribir.append(("EnriqueAP6","010203"))
-lineasEscribir.append(("eap_6","102030"))
-lineasEscribir.append(("efjvdj","odiewsnjd"))
-lineasEscribir.append(("user","password"))
 
 introducirDatoArchivo(nombreArchivo, "EnriqueAP6")
 introducirDatoArchivo(nombreArchivo, "010203")
