@@ -22,14 +22,8 @@ def envejeceLista():
         
         sleep(1)
 
-
-def introducirDatoArchivo(lineaEscribir):
-    
-    archivoEscribir = open(nombreArchivo,"a")
-    archivoEscribir.write(lineaEscribir+"\n")
-    archivoEscribir.close()
         
-def compruebaCredenciales(nombreArchivo, user, password):
+def compruebaCredenciales(user, password, enCuentaPassword):
 
     credencialesValidas = False
 
@@ -38,7 +32,9 @@ def compruebaCredenciales(nombreArchivo, user, password):
 
     for numLinea in range(len(lineasLeidas)):
         if user == lineasLeidas[numLinea][:-1]:
-            if (numLinea +1)<= len(lineasLeidas) and password == lineasLeidas[numLinea+1][:-1]: #primera condición evita que falle porque la última contraseña sea igual a un usuario
+            if (numLinea +1)<= len(lineasLeidas) and password == lineasLeidas[numLinea+1][:-1] or not enCuentaPassword: 
+                #primera condición evita que falle porque la última contraseña sea igual al nombre del usuario buscado
+                #tercera condición permite comprobar si un usuario ya está registrado en la base de datos
                 credencialesValidas = True
     
     return credencialesValidas
@@ -48,7 +44,7 @@ def asociaUsuarioToken(user):
 
     global contadorTokensCreados
 
-    tokenUsuario = "token" + str(contadorTokensCreados)
+    tokenUsuario = "token" + str(contadorTokensCreados) # esta numeración no podrá repetirse durante una ejecución (y cuando acabe se borrarán todos los datos)
     contadorTokensCreados += 1
     contadorPosicion = 0
 
@@ -64,11 +60,11 @@ def asociaUsuarioToken(user):
 
 def refreshAuthorization(user, passwordHash):
 
-    if compruebaCredenciales(nombreArchivo, user, passwordHash):
+    if compruebaCredenciales(user, passwordHash, True): #pongo True para que tenga en cuenta  usuario y contraseña en la comprobación
         tokenNuevo = asociaUsuarioToken(user)
         return tokenNuevo
-    #else:
-        #raise IceFlix.Unauthorized
+    else:
+        raise IceFlix.Unauthorized
 
 
 def isAuthorized(userToken):
@@ -87,9 +83,8 @@ def whois(userToken):
         for elemento in listaTokens:
             if elemento[1] == userToken:
                 return elemento[0]
-    #else:
-        #raise IceFlix.Unauthorized
-
+    else:
+        raise IceFlix.Unauthorized
 
 
 def isAdmin(adminToken):
@@ -99,12 +94,80 @@ def isAdmin(adminToken):
         return False
 
 
+def addUser(user, passwordHash, adminToken):
+
+    if isAdmin(adminToken):
+        try:
+           
+            if not compruebaCredenciales(user, passwordHash, False): #controla el caso de querer registrar un usuario que ya existe
+                archivoEscribir = open(nombreArchivo,"a")
+                archivoEscribir.write(user+"\n")
+                archivoEscribir.write(passwordHash+"\n")
+                archivoEscribir.close()
+
+                #hay que introducir al user tanto en el archivo como en la lista temporal
+                listaTokens.append([user,'',0]) #introduzco en la lista temporal al nuevo usuario, pero con valores vacios 
+                asociaUsuarioToken(user) #le asigno un token válido al user y se pone su edad a 0
+
+        except:
+            raise IceFlix.TemporaryUnavailable
+    else:
+        raise IceFlix.Unauthorized
+
+
+def removeUser(user, adminToken):
+
+    if isAdmin(adminToken):
+        try:
+            posicionUserArchivo = buscaUserArchivo(user)
+
+            if  posicionUserArchivo != -1: #controla el caso de que se intente borrar un user inexistente
+                eliminaLineasArchivo(posicionUserArchivo)  #hay que borrar al user tanto del archivo ...
+                listaTokens.pop(buscaUserListaTemporal(user)) #... como de la lista temporal
+        except:
+            raise IceFlix.Unauthorized
+    else:
+        raise IceFlix.Unauthorized 
+
+
+def buscaUserArchivo(user):
+
+    archivoLeer = open(nombreArchivo,"r")
+    lineasLeidas = archivoLeer.readlines()
+
+    for numLinea in range(len(lineasLeidas)):
+        if user == lineasLeidas[numLinea][:-1]:  #[:-1] para quitar el salto de línea
+            return numLinea
+    return -1 #elimina los errores que pudieran producirse si se intenta eliminar un user que no existe
+
+
+def eliminaLineasArchivo(numLinea):
+
+    archivoLeer = open(nombreArchivo,"r")
+    lineasLeidas = archivoLeer.readlines()
+    archivoLeer.close()
+    archivoLeer = open(nombreArchivo,"w")
+
+    for i in range(len(lineasLeidas)):
+        if i != numLinea and i != numLinea + 1: #se salta las líneas que contienen las credenciales a borrar
+            archivoLeer.write(lineasLeidas[i]) #ahora no añado el salto de línea porque dejaría una línea en blanco entre datos
+    archivoLeer.close()
+
+
+def buscaUserListaTemporal(user):
+
+    contadorPosicion = 0
+
+    for elemento in listaTokens:
+        if elemento[0] == user:
+            return contadorPosicion
+        contadorPosicion += 1    
+
+
 def imprimeListaTokens():
     
     for elemento in listaTokens:
         print(elemento)
-
-
 
 
 
@@ -117,14 +180,6 @@ if __name__ == "__main__":
     listaTokens = []
     nombreArchivo = "bbddCredenciales.txt"
 
-    #introducirDatoArchivo("EnriqueAP6")
-    #introducirDatoArchivo("010203")
-    #introducirDatoArchivo("eap_6")
-    #introducirDatoArchivo("102030")
-    #introducirDatoArchivo("efjvdj")
-    #introducirDatoArchivo("odiewsnjd")
-    #introducirDatoArchivo("user")
-    #introducirDatoArchivo("password")
 
     #ESTO LUEGO LO HARÍA EL adduser()
     listaTokens.append(['EnriqueAP6','token1',10])
@@ -136,7 +191,7 @@ if __name__ == "__main__":
     listaTokens.append(['user','token7',0])
     ######################################
     
-    
+
 
     #hilo = threading.Thread(target = envejeceLista)
     #hilo.start()
