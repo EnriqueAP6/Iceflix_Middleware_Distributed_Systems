@@ -55,7 +55,46 @@ def asociaUsuarioToken(user):
             break
         contadorPosicion += 1
 
+    if contadorPosicion == len(listaTokens): 
+        #se controla el caso de renovar el token de un usuario borrado de la lista temporal por tiempo expirado (pero siga en la BD)
+        # también se controla el caso de que el sistema esté recién iniciado y la lista temporal vacía
+        listaTokens.append([user,tokenUsuario,0])
+
     return tokenUsuario
+
+
+def buscaUserArchivo(user):
+
+    archivoLeer = open(nombreArchivo,"r")
+    lineasLeidas = archivoLeer.readlines()
+
+    for numLinea in range(len(lineasLeidas)):
+        if user == lineasLeidas[numLinea][:-1]:  #[:-1] para quitar el salto de línea
+            return numLinea
+    return -1 #elimina los errores que pudieran producirse si se intenta eliminar un user que no existe
+
+
+def eliminaLineasArchivo(numLinea):
+
+    archivoLeer = open(nombreArchivo,"r")
+    lineasLeidas = archivoLeer.readlines()
+    archivoLeer.close()
+    archivoLeer = open(nombreArchivo,"w")
+
+    for i in range(len(lineasLeidas)):
+        if i != numLinea and i != numLinea + 1: #se salta las líneas que contienen las credenciales a borrar
+            archivoLeer.write(lineasLeidas[i]) #ahora no añado el salto de línea porque dejaría una línea en blanco entre datos
+    archivoLeer.close()
+
+
+def buscaUserListaTemporal(user):
+
+    contadorPosicion = 0
+
+    for elemento in listaTokens:
+        if elemento[0] == user:
+            return contadorPosicion
+        contadorPosicion += 1    
 
 
 def refreshAuthorization(user, passwordHash):
@@ -130,40 +169,6 @@ def removeUser(user, adminToken):
         raise IceFlix.Unauthorized 
 
 
-def buscaUserArchivo(user):
-
-    archivoLeer = open(nombreArchivo,"r")
-    lineasLeidas = archivoLeer.readlines()
-
-    for numLinea in range(len(lineasLeidas)):
-        if user == lineasLeidas[numLinea][:-1]:  #[:-1] para quitar el salto de línea
-            return numLinea
-    return -1 #elimina los errores que pudieran producirse si se intenta eliminar un user que no existe
-
-
-def eliminaLineasArchivo(numLinea):
-
-    archivoLeer = open(nombreArchivo,"r")
-    lineasLeidas = archivoLeer.readlines()
-    archivoLeer.close()
-    archivoLeer = open(nombreArchivo,"w")
-
-    for i in range(len(lineasLeidas)):
-        if i != numLinea and i != numLinea + 1: #se salta las líneas que contienen las credenciales a borrar
-            archivoLeer.write(lineasLeidas[i]) #ahora no añado el salto de línea porque dejaría una línea en blanco entre datos
-    archivoLeer.close()
-
-
-def buscaUserListaTemporal(user):
-
-    contadorPosicion = 0
-
-    for elemento in listaTokens:
-        if elemento[0] == user:
-            return contadorPosicion
-        contadorPosicion += 1    
-
-
 def imprimeListaTokens():
     
     for elemento in listaTokens:
@@ -182,16 +187,19 @@ if __name__ == "__main__":
 
 
     #ESTO LUEGO LO HARÍA EL adduser()
-    listaTokens.append(['EnriqueAP6','token1',10])
-    listaTokens.append(['user2','token2',3])
-    listaTokens.append(['eap_6','token3',6])
-    listaTokens.append(['user4','token4',8])
-    listaTokens.append(['efjvdj','token5',5])
-    listaTokens.append(['user6','token6',2])
-    listaTokens.append(['user','token7',0])
+    #listaTokens.append(['EnriqueAP6','token1',10])
+    #listaTokens.append(['user2','token2',3])
+    #listaTokens.append(['eap_6','token3',6])
+    #listaTokens.append(['user4','token4',8])
+    #listaTokens.append(['efjvdj','token5',5])
+    #listaTokens.append(['user6','token6',2])
+    #listaTokens.append(['user','token7',0])
     ######################################
     
-
+    imprimeListaTokens()
+    print()
+    refreshAuthorization('EnriqueAP6', '010203')
+    imprimeListaTokens()
 
     #hilo = threading.Thread(target = envejeceLista)
     #hilo.start()
