@@ -3,7 +3,17 @@
 
 from time import sleep
 import threading
+import  sys
+import Ice
 
+try:
+    import IceFlix
+
+except ImportError:
+    import os
+    import Ice
+
+    Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
 
 def envejeceLista():
     
@@ -176,7 +186,6 @@ def imprimeListaTokens():
 
 
 
-
 if __name__ == "__main__":
 
     tokenAdministracion = "1234"
@@ -185,21 +194,22 @@ if __name__ == "__main__":
     listaTokens = []
     nombreArchivo = "bbddCredenciales.txt"
 
+    
 
     #ESTO LUEGO LO HARÍA EL adduser()
-    #listaTokens.append(['EnriqueAP6','token1',10])
-    #listaTokens.append(['user2','token2',3])
-    #listaTokens.append(['eap_6','token3',6])
-    #listaTokens.append(['user4','token4',8])
-    #listaTokens.append(['efjvdj','token5',5])
-    #listaTokens.append(['user6','token6',2])
-    #listaTokens.append(['user','token7',0])
+    listaTokens.append(['EnriqueAP6','token1',10])
+    listaTokens.append(['user2','token2',3])
+    listaTokens.append(['eap_6','token3',6])
+    listaTokens.append(['user4','token4',8])
+    listaTokens.append(['efjvdj','token5',5])
+    listaTokens.append(['user6','token6',2])
+    listaTokens.append(['user','token7',0])
     ######################################
-    
+
     imprimeListaTokens()
-    print()
-    refreshAuthorization('EnriqueAP6', '010203')
-    imprimeListaTokens()
+    print(isAuthorized("token4"))
+    print(isAuthorized("token42"))
+
 
     #hilo = threading.Thread(target = envejeceLista)
     #hilo.start()

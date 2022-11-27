@@ -2,13 +2,22 @@
 
 import logging
 import Ice # pylint:disable=import-error
-import IceFlix  # pylint:disable=import-error
+#import IceFlix  # pylint:disable=import-error
 from time import sleep
 import threading
+import sys
 
-tokenAdministracion = "1234"
+try:
+    import IceFlix
+
+except ImportError:
+    import os
+    Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
+    import IceFlix
+
+
 contadorTokensCreados = 0
-tiempoLimite= 120 # los 2 minutos durante los cuales los token mantienen su validez
+tiempoLimite= 20 # los 2 minutos durante los cuales los token mantienen su validez
 listaTokens = []
 nombreArchivo = "bbddCredenciales.txt"
 
@@ -29,8 +38,7 @@ def envejeceLista():
             contador += 1
         
         sleep(1)
-
-        
+      
 def compruebaCredenciales(user, password, enCuentaPassword):
 
     credencialesValidas = False
@@ -46,7 +54,6 @@ def compruebaCredenciales(user, password, enCuentaPassword):
                 credencialesValidas = True
     
     return credencialesValidas
-
 
 def asociaUsuarioToken(user):
 
@@ -70,7 +77,6 @@ def asociaUsuarioToken(user):
 
     return tokenUsuario
 
-
 def buscaUserArchivo(user):
 
     archivoLeer = open(nombreArchivo,"r")
@@ -80,7 +86,6 @@ def buscaUserArchivo(user):
         if user == lineasLeidas[numLinea][:-1]:  #[:-1] para quitar el salto de línea
             return numLinea
     return -1 #elimina los errores que pudieran producirse si se intenta eliminar un user que no existe
-
 
 def eliminaLineasArchivo(numLinea):
 
@@ -94,7 +99,6 @@ def eliminaLineasArchivo(numLinea):
             archivoLeer.write(lineasLeidas[i]) #ahora no añado el salto de línea porque dejaría una línea en blanco entre datos
     archivoLeer.close()
 
-
 def buscaUserListaTemporal(user):
 
     contadorPosicion = 0
@@ -104,11 +108,10 @@ def buscaUserListaTemporal(user):
             return contadorPosicion
         contadorPosicion += 1    
 
-
 class Authenticator(IceFlix.Authenticator):
     """Sirviente para la interfaz IceFlix.Authenticator"""
 
-    def refreshAuthorization(self, user, passwordHash):  # pylint:disable=invalid-name, unused-argument
+    def refreshAuthorization(self, user, passwordHash, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Crea un nuevo token de autorización de usuario si las credenciales son válidas."
         if compruebaCredenciales(user, passwordHash, True): #pongo True para que tenga en cuenta  usuario y contraseña en la comprobación
             tokenNuevo = asociaUsuarioToken(user)
@@ -116,7 +119,7 @@ class Authenticator(IceFlix.Authenticator):
         else:
             raise IceFlix.Unauthorized
 
-    def isAuthorized(self, userToken):  # pylint:disable=invalid-name, unused-argument
+    def isAuthorized(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Indica si un token dado es válido o no."
         tokenValido = False
 
@@ -125,7 +128,7 @@ class Authenticator(IceFlix.Authenticator):
                 tokenValido = True
             return tokenValido
 
-    def whois(self, userToken):  # pylint:disable=invalid-name, unused-argument
+    def whois(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Permite descubrir el nombre del usuario a partir de un token válido."
         if self.isAuthorized(userToken):
             for elemento in listaTokens:
@@ -134,14 +137,14 @@ class Authenticator(IceFlix.Authenticator):
         else:
             raise IceFlix.Unauthorized
 
-    def isAdmin(self, adminToken):  # pylint:disable=invalid-name, unused-argument
+    def isAdmin(self, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Devuelve un valor booleano para comprobar si el token proporcionado corresponde o no con el administrativo."
         if adminToken == tokenAdministracion:
             return True
         else:
             return False
     
-    def addUser(self, user, passwordHash, adminToken):  # pylint:disable=invalid-name, unused-argument
+    def addUser(self, user, passwordHash, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Función administrativa que permite añadir unas nuevas credenciales en el almacén de datos si el token administrativo es correcto."
         if self.isAdmin(adminToken):
             try:
@@ -161,7 +164,7 @@ class Authenticator(IceFlix.Authenticator):
         else:
             raise IceFlix.Unauthorized
     
-    def removeUser(self, user, adminToken):  # pylint:disable=invalid-name, unused-argument
+    def removeUser(self, user, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Función administrativa que permite eliminar unas credenciales del almacén de datos si el token administrativo es correcto."
         if self.isAdmin(adminToken):
             try:
@@ -186,15 +189,48 @@ class AuthenticatorApp(Ice.Application):
         self.adapter = None
 
     def run(self, args):
+
+        global tokenAdministracion #QUIZÁ CAMBIAR LUEGO
+
         """Ejecuta la aplicación, añadiendo los objetos necesarios al adaptador."""
         logging.info("Running Authenticator application")
-        comm = self.communicator()
-        self.adapter = comm.createObjectAdapter("MainAdapter")
+        broker = self.communicator()
+
+        #OBTENCIÓN DEL TOKEN DE ADMINISTRACIÓN
+        properties = broker.getProperties()
+        tokenAdministracion = properties.getProperty("AdminToken")
+
+        self.adapter = broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter","tcp")
         self.adapter.activate()
 
-        self.proxy = self.adapter.addWithUUID(self.servant)
+        proxy_authenticator = self.adapter.add(self.servant, broker.stringToIdentity("authenticator"))
+        proxy_authenticator = IceFlix.AuthenticatorPrx.uncheckedCast(proxy_authenticator) 
+        print(f'\n\nThe proxy of the authenticator is "{proxy_authenticator}"\n\n')
+        #self.proxy = self.adapter.addWithUUID(self.servant)
+        
+        proxy_main = broker.stringToProxy(sys.argv[1])
+        main = IceFlix.MainPrx.checkedCast(proxy_main)
+
+        if not main:
+            raise RuntimeError('Invalid proxy')
+      
+        listaTokens.append(['EnriqueAP6','token1',10])
+        listaTokens.append(['user2','token2',3])
+        listaTokens.append(['eap_6','token3',6])
+        listaTokens.append(['user4','token4',8])
+        listaTokens.append(['efjvdj','token5',5])
+        listaTokens.append(['user6','token6',2])
+        listaTokens.append(['user','token7',0])
+
+        main.newService(proxy_authenticator, "authenticator")
+        
+        hiloEnvejeceTokens = threading.Thread(target = envejeceLista)
+        hiloEnvejeceTokens.start()
 
         self.shutdownOnInterrupt()
-        comm.waitForShutdown()
+        broker.waitForShutdown()
 
         return 0
+
+s = AuthenticatorApp()
+sys.exit(s.main(sys.argv))
