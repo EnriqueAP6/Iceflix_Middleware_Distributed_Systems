@@ -207,8 +207,10 @@ if __name__ == "__main__":
     ######################################
 
     imprimeListaTokens()
-    print(isAuthorized("token4"))
-    print(isAuthorized("token42"))
+    tokenUsuario = refreshAuthorization("hola","adios")
+    imprimeListaTokens()
+    print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(isAuthorized(tokenUsuario)))
+            
 
 
     #hilo = threading.Thread(target = envejeceLista)

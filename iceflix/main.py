@@ -37,14 +37,14 @@ class Main(IceFlix.Main):
         
         try:
             authenticator.addUser("hola","adios","1234")
-            authenticator.removeUser("EnriqueAP6","1234")
+            #authenticator.removeUser("EnriqueAP6","1234")
             tokenUsuario = authenticator.refreshAuthorization("hola","adios")
             #print("¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN 1234EW3 ? --> " + str(authenticator.isAuthorized("1234EW3")))
-            #print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario)))
-            #print("¿QUIÉN ES EL USUARIO CON EL TOKEN 1234EW3? --> " + authenticator.whois("1234EW3"))
-            #print(f"¿QUIÉN ES EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + authenticator.whois(tokenUsuario))
+            print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario)))
             print("¿ES ADMIN EL USUARIO CON EL TOKEN 1234 ? --> " + str(authenticator.isAdmin("1234")))
             print(f"¿ES ADMIN EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAdmin(tokenUsuario)))
+            #print("¿QUIÉN ES EL USUARIO CON EL TOKEN 1234EW3? --> " + authenticator.whois("1234EW3"))
+            print(f"¿QUIÉN ES EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + authenticator.whois(tokenUsuario))
         except IceFlix.TemporaryUnavailable:
             print("\n\nTEMPORARY UNAVALIABLE")
         except IceFlix.Unauthorized:

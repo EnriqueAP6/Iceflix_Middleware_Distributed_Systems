@@ -17,7 +17,7 @@ except ImportError:
 
 
 contadorTokensCreados = 0
-tiempoLimite= 20 # los 2 minutos durante los cuales los token mantienen su validez
+tiempoValidezTokens= 120 # los 2 minutos durante los cuales los token mantienen su validez
 listaTokens = []
 nombreArchivo = "bbddCredenciales.txt"
 
@@ -30,7 +30,7 @@ def envejeceLista():
 
         for elemento in listaTokens:
 
-            if (elemento[2] + 1) == tiempoLimite:
+            if (elemento[2] + 1) == tiempoValidezTokens:
                 print(f"Se ha eliminado la entrada: {listaTokens.pop(contador)}")
             else:
                 elemento[2] += 1
@@ -126,10 +126,15 @@ class Authenticator(IceFlix.Authenticator):
         for elemento in listaTokens:
             if userToken == elemento[1]:
                 tokenValido = True
-            return tokenValido
+                break
+            
+        return tokenValido
 
     def whois(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
         "Permite descubrir el nombre del usuario a partir de un token válido."
+
+        global listaTokens
+
         if self.isAuthorized(userToken):
             for elemento in listaTokens:
                 if elemento[1] == userToken:
@@ -187,6 +192,13 @@ class AuthenticatorApp(Ice.Application):
         self.servant = Authenticator()
         self.proxy = None
         self.adapter = None
+        self.tiempoValidezServicio = 25
+
+    def renuevaServicio(self, obj_main):
+
+        while True:
+            obj_main.announce(obj_main, "authenticator")
+            sleep(self.tiempoValidezServicio)
 
     def run(self, args):
 
@@ -214,6 +226,7 @@ class AuthenticatorApp(Ice.Application):
         if not main:
             raise RuntimeError('Invalid proxy')
       
+        #BORRAR LUEGO
         listaTokens.append(['EnriqueAP6','token1',10])
         listaTokens.append(['user2','token2',3])
         listaTokens.append(['eap_6','token3',6])
@@ -221,11 +234,17 @@ class AuthenticatorApp(Ice.Application):
         listaTokens.append(['efjvdj','token5',5])
         listaTokens.append(['user6','token6',2])
         listaTokens.append(['user','token7',0])
+        #######
 
         main.newService(proxy_authenticator, "authenticator")
         
+        #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
         hiloEnvejeceTokens = threading.Thread(target = envejeceLista)
         hiloEnvejeceTokens.start()
+
+        #hilo para enviar mensajes "announce()" al servicio main cada cierto tiempo establecido en el enunciado
+        hiloRenuevaServicio = threading.Thread(target = self.renuevaServicio, args=(main,))
+        hiloRenuevaServicio.start()
 
         self.shutdownOnInterrupt()
         broker.waitForShutdown()
