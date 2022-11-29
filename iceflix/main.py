@@ -3,6 +3,7 @@
 import logging
 import sys
 import Ice
+from time import sleep
 
 try:
     import IceFlix
@@ -36,17 +37,19 @@ class Main(IceFlix.Main):
         authenticator = IceFlix.AuthenticatorPrx.checkedCast(proxy)
         
         try:
-            authenticator.addUser("hola","adios","1234")
-            #authenticator.removeUser("EnriqueAP6","1234")
-            tokenUsuario = authenticator.refreshAuthorization("hola","adios")
-            #print("¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN 1234EW3 ? --> " + str(authenticator.isAuthorized("1234EW3")))
-            print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario)))
-            print("¿ES ADMIN EL USUARIO CON EL TOKEN 1234 ? --> " + str(authenticator.isAdmin("1234")))
-            print(f"¿ES ADMIN EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAdmin(tokenUsuario)))
-            #print("¿QUIÉN ES EL USUARIO CON EL TOKEN 1234EW3? --> " + authenticator.whois("1234EW3"))
-            print(f"¿QUIÉN ES EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + authenticator.whois(tokenUsuario))
-        except IceFlix.TemporaryUnavailable:
-            print("\n\nTEMPORARY UNAVALIABLE")
+            authenticator.addUser("hola","adios","1234")  #usuario nuevo
+            authenticator.addUser("EnriqueAP6","dsvfd ","1234")  #usuario ya registrado
+            sleep(3)
+            authenticator.addUser("Enri","adios","1234")  #usuario nuevo
+            authenticator.removeUser("Enri","1234") #borrado usuario existente
+            authenticator.removeUser("djfvdb ","1234") #borrado usuario inexistente
+            tokenUsuario = authenticator.refreshAuthorization("hola","adios") #usuario existente
+            #print("¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN 1234EW3 ? --> " + str(authenticator.isAuthorized("1234EW3"))) #usuario inexistente
+            print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario))) #usuario existente
+            print("¿ES ADMIN EL USUARIO CON EL TOKEN 1234 ? --> " + str(authenticator.isAdmin("1234"))) #administrador
+            print(f"¿ES ADMIN EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAdmin(tokenUsuario))) #no administrador
+            #print("¿QUIÉN ES EL USUARIO CON EL TOKEN 1234EW3? --> " + authenticator.whois("1234EW3")) #usuario inexistente
+            print(f"¿QUIÉN ES EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + authenticator.whois(tokenUsuario)) #usuario existente
         except IceFlix.Unauthorized:
             print("\n\nUNAUTHORIZED")
 
@@ -75,10 +78,9 @@ class MainApp(Ice.Application):
        
 
         self.adapter = broker.createObjectAdapterWithEndpoints("MainAdapter","tcp")
-        proxy = self.adapter.add(self.servant, broker.stringToIdentity("Main"))
-        #self.proxy = self.adapter.addWithUUID(self.servant)
+        self.proxy = self.adapter.addWithUUID(self.servant)
 
-        print(proxy, flush=True)
+        print(self.proxy, flush=True)
        
         self.adapter.activate()
         self.shutdownOnInterrupt()

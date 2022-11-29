@@ -1,10 +1,10 @@
-EnriqueAP6
-010203
-eap_6
-102030
-efjvdj
-odiewsnjd
-user
-password
-hola
-adios
+[USUARIO] EnriqueAP6
+[CONTRASEÑA] 010203
+[USUARIO] eap_6
+[CONTRASEÑA] 102030
+[USUARIO] efjvdj
+[CONTRASEÑA] odiewsnjd
+[USUARIO] user
+[CONTRASEÑA] password
+[USUARIO] hola
+[CONTRASEÑA] adios

@@ -1,11 +1,11 @@
 """Módulo con el código destinado al servicio de autenticación."""
 
 import logging
-import Ice # pylint:disable=import-error
-#import IceFlix  # pylint:disable=import-error
 from time import sleep
 import threading
 import sys
+import uuid
+import Ice # pylint:disable=import-error
 
 try:
     import IceFlix
@@ -15,173 +15,175 @@ except ImportError:
     Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
     import IceFlix
 
-
-contadorTokensCreados = 0
-tiempoValidezTokens= 120 # los 2 minutos durante los cuales los token mantienen su validez
-listaTokens = []
-nombreArchivo = "bbddCredenciales.txt"
-
-
-def envejeceLista():
-    
-    while True: 
-
-        contador = 0
-
-        for elemento in listaTokens:
-
-            if (elemento[2] + 1) == tiempoValidezTokens:
-                print(f"Se ha eliminado la entrada: {listaTokens.pop(contador)}")
-            else:
-                elemento[2] += 1
-
-            contador += 1
-        
-        sleep(1)
-      
-def compruebaCredenciales(user, password, enCuentaPassword):
-
-    credencialesValidas = False
-
-    archivoLeer = open(nombreArchivo,"r")
-    lineasLeidas = archivoLeer.readlines()
-
-    for numLinea in range(len(lineasLeidas)):
-        if user == lineasLeidas[numLinea][:-1]:
-            if (numLinea +1)<= len(lineasLeidas) and password == lineasLeidas[numLinea+1][:-1] or not enCuentaPassword: 
-                #primera condición evita que falle porque la última contraseña sea igual al nombre del usuario buscado
-                #tercera condición permite comprobar si un usuario ya está registrado en la base de datos
-                credencialesValidas = True
-    
-    return credencialesValidas
-
-def asociaUsuarioToken(user):
-
-    global contadorTokensCreados
-
-    tokenUsuario = "token" + str(contadorTokensCreados) # esta numeración no podrá repetirse durante una ejecución (y cuando acabe se borrarán todos los datos)
-    contadorTokensCreados += 1
-    contadorPosicion = 0
-
-    for elemento in listaTokens:
-        if elemento[0] == user:
-            listaTokens.pop(contadorPosicion)
-            listaTokens.insert(contadorPosicion,[str(user),str(tokenUsuario),0])
-            break
-        contadorPosicion += 1
-
-    if contadorPosicion == len(listaTokens): 
-        #se controla el caso de renovar el token de un usuario borrado de la lista temporal por tiempo expirado (pero siga en la BD)
-        # también se controla el caso de que el sistema esté recién iniciado y la lista temporal vacía
-        listaTokens.append([user,tokenUsuario,0])
-
-    return tokenUsuario
-
-def buscaUserArchivo(user):
-
-    archivoLeer = open(nombreArchivo,"r")
-    lineasLeidas = archivoLeer.readlines()
-
-    for numLinea in range(len(lineasLeidas)):
-        if user == lineasLeidas[numLinea][:-1]:  #[:-1] para quitar el salto de línea
-            return numLinea
-    return -1 #elimina los errores que pudieran producirse si se intenta eliminar un user que no existe
-
-def eliminaLineasArchivo(numLinea):
-
-    archivoLeer = open(nombreArchivo,"r")
-    lineasLeidas = archivoLeer.readlines()
-    archivoLeer.close()
-    archivoLeer = open(nombreArchivo,"w")
-
-    for i in range(len(lineasLeidas)):
-        if i != numLinea and i != numLinea + 1: #se salta las líneas que contienen las credenciales a borrar
-            archivoLeer.write(lineasLeidas[i]) #ahora no añado el salto de línea porque dejaría una línea en blanco entre datos
-    archivoLeer.close()
-
-def buscaUserListaTemporal(user):
-
-    contadorPosicion = 0
-
-    for elemento in listaTokens:
-        if elemento[0] == user:
-            return contadorPosicion
-        contadorPosicion += 1    
-
 class Authenticator(IceFlix.Authenticator):
     """Sirviente para la interfaz IceFlix.Authenticator"""
 
-    def refreshAuthorization(self, user, passwordHash, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
+    def __init__(self, tokenadministracion):
+        self.contadortokenscreados = 0
+        self.tiempovalideztokens= 120
+        # los 2 minutos durante los cuales los token mantienen su validez
+        self.diccionariotokens = {}
+        #se guardará el token y el tiempo de vigencia para cada usuario
+        self.nombrearchivo = "bbddCredenciales.txt"
+        self.tokenadministracion = tokenadministracion
+
+    def envejecelista(self):
+        """Controla la validez de los token con el paso del tiempo"""
+
+        while True:
+            diccionarioaux = self.diccionariotokens.copy()
+            for entrada in diccionarioaux:
+                if (self.diccionariotokens[entrada][1] + 1) == self.tiempovalideztokens:
+                    print(f"Se ha eliminado la entrada: {self.diccionariotokens.pop(entrada)}")
+                else:
+                    self.diccionariotokens[entrada][1] += 1
+
+            sleep(1)
+
+    def compruebacredenciales(self, user, password):
+        """Verifica que un usuario y contraseña estén en el """
+        """arhivo de texto usado como base de datos""" # pylint:disable=W0105
+        credencialesvalidas = False
+
+        archivoleer = open(self.nombrearchivo,"r",encoding="utf-8")
+        lineasleidas = archivoleer.readlines()
+
+        for numlinea in range(len(lineasleidas)): # pylint:disable=C0200
+            if user == lineasleidas[numlinea][len("[USUARIO] "):-1]:
+                if password == lineasleidas[numlinea+1][len("[CONTRASEÑA] "):-1]:
+                #primera condición evita que falle porque la última contraseña sea igual al
+                # nombre del usuario buscado
+                #tercera condición permite comprobar si un usuario ya está registrado
+                # en la base de datos
+                    credencialesvalidas = True
+
+        return credencialesvalidas
+
+    def asociausuariotoken(self, user):
+        """Inserta en la lista de token a un usuario junto con un """
+        """token nuevo que no se repetirá""" # pylint:disable=W0105
+
+        tokenusuario = "token" + str(self.contadortokenscreados)
+        # esta numeración no podrá repetirse
+        #durante una ejecución (y cuando acabe se borrarán todos los datos)
+        self.contadortokenscreados += 1
+
+
+        #se controla el caso de renovar el token de un usuario borrado de la lista temporal por
+        # tiempo expirado (pero siga en la BD)
+        # también se controla el caso de que el sistema esté recién iniciado y la lista temporal
+        # vacía
+        print(f"Se ha añadido la entrada: {[tokenusuario,0]}")
+        self.diccionariotokens[user] = [tokenusuario,0]
+
+        return tokenusuario
+
+    def buscauserarchivo(self, user):
+        """Devuelve la línea en la que está escrito, dentro del archivo"""
+        """ de texto que se usa como base de datos, el nombre de un usuario buscado""" # pylint:disable=W0105
+        archivoleer = open(self.nombrearchivo,"r", encoding="utf-8")
+        lineasleidas = archivoleer.readlines()
+
+        for numlinea in range(len(lineasleidas)): # pylint:disable=C0200
+            if user == lineasleidas[numlinea][len("[USUARIO] "):-1]:
+                #[:-1] para quitar el salto de línea
+                return numlinea
+        #elimina los errores que pudieran producirse si se intenta eliminar
+        # un user que no existe
+        return -1
+
+    def eliminalineasarchivo(self, numlinea):
+        """Reescribe el contenido del archivo de texto usado como"""
+        """base de datos saltándose ciertsa líneas""" # pylint:disable=W0105
+        archivoleer = open(self.nombrearchivo,"r", encoding="utf-8")
+        lineasleidas = archivoleer.readlines()
+        archivoleer.close()
+        archivoleer = open(self.nombrearchivo,"w", encoding="utf-8")
+
+        for i in range(len(lineasleidas)): # pylint:disable=C0200
+            if i != numlinea and i != numlinea + 1: #se salta las líneas que contienen
+            #las credenciales a borrar
+                archivoleer.write(lineasleidas[i]) #ahora no añado el salto de línea porque
+                #dejaría una línea en blanco entre datos
+        archivoleer.close()
+
+    def refreshAuthorization(self, user, passwordHash, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
         "Crea un nuevo token de autorización de usuario si las credenciales son válidas."
-        if compruebaCredenciales(user, passwordHash, True): #pongo True para que tenga en cuenta  usuario y contraseña en la comprobación
-            tokenNuevo = asociaUsuarioToken(user)
-            return tokenNuevo
+        if self.compruebacredenciales(user, passwordHash):
+        #pongo True para que tenga en cuenta
+        #usuario y contraseña en la comprobación
+            tokennuevo = self.asociausuariotoken(user)
+            return tokennuevo
         else:
             raise IceFlix.Unauthorized
 
-    def isAuthorized(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
+    def isAuthorized(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
         "Indica si un token dado es válido o no."
-        tokenValido = False
+        tokenvalido = False
 
-        for elemento in listaTokens:
-            if userToken == elemento[1]:
-                tokenValido = True
+        for valor in self.diccionariotokens.values():
+            if userToken == valor[0]:
+                tokenvalido = True
                 break
-            
-        return tokenValido
 
-    def whois(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
+        return tokenvalido
+
+    def whois(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
         "Permite descubrir el nombre del usuario a partir de un token válido."
 
-        global listaTokens
-
         if self.isAuthorized(userToken):
-            for elemento in listaTokens:
-                if elemento[1] == userToken:
-                    return elemento[0]
+            for entrada in self.diccionariotokens:
+                if userToken == self.diccionariotokens[entrada][0]:
+                    return entrada
         else:
             raise IceFlix.Unauthorized
 
-    def isAdmin(self, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
-        "Devuelve un valor booleano para comprobar si el token proporcionado corresponde o no con el administrativo."
-        if adminToken == tokenAdministracion:
+    def isAdmin(self, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
+        "Devuelve un valor booleano para comprobar si el token proporcionado"
+        "corresponde o no con el administrativo." # pylint:disable=W0105
+        if adminToken == self.tokenadministracion :
             return True
         else:
             return False
-    
-    def addUser(self, user, passwordHash, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
-        "Función administrativa que permite añadir unas nuevas credenciales en el almacén de datos si el token administrativo es correcto."
+
+    def addUser(self, user, passwordHash, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
+        "Función administrativa que permite añadir unas nuevas credenciales en el almacén de datos"
+        "si el token administrativo es correcto." # pylint:disable=W0105
         if self.isAdmin(adminToken):
-            try:
-           
-                if not compruebaCredenciales(user, passwordHash, False): #controla el caso de querer registrar un usuario que ya existe
-                    archivoEscribir = open(nombreArchivo,"a")
-                    archivoEscribir.write(user+"\n")
-                    archivoEscribir.write(passwordHash+"\n")
-                    archivoEscribir.close()
 
-                    #hay que introducir al user tanto en el archivo como en la lista temporal
-                    listaTokens.append([user,'',0]) #introduzco en la lista temporal al nuevo usuario, pero con valores vacios 
-                    asociaUsuarioToken(user) #le asigno un token válido al user y se pone su edad a 0
+            if self.buscauserarchivo(user) == -1 :
+            #controla el caso de querer registrar un usuario que ya existe
+            #(basta con que el nombre del usuario esté en la BD)
+                archivoescribir = open(self.nombrearchivo,"a", encoding="utf-8")
+                archivoescribir.write("[USUARIO] "+ user+"\n")
+                archivoescribir.write("[CONTRASEÑA] " + passwordHash+"\n")
+                archivoescribir.close()
 
-            except:
-                raise IceFlix.TemporaryUnavailable
+                #hay que introducir al user tanto en el archivo como en la lista temporal
+
+                #le asigno un token válido y se pone su timpo de vigencia a 0
+                self.asociausuariotoken(user)
+
         else:
             raise IceFlix.Unauthorized
-    
-    def removeUser(self, user, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument
-        "Función administrativa que permite eliminar unas credenciales del almacén de datos si el token administrativo es correcto."
-        if self.isAdmin(adminToken):
-            try:
-                posicionUserArchivo = buscaUserArchivo(user)
 
-                if  posicionUserArchivo != -1: #controla el caso de que se intente borrar un user inexistente
-                    eliminaLineasArchivo(posicionUserArchivo)  #hay que borrar al user tanto del archivo ...
-                    listaTokens.pop(buscaUserListaTemporal(user)) #... como de la lista temporal
-            except:
-                raise IceFlix.Unauthorized
+    def removeUser(self, user, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
+        "Función administrativa que permite eliminar unas credenciales del almacén de"
+        "datos si el token administrativo es correcto." # pylint:disable=W0105
+        if self.isAdmin(adminToken):
+
+            posicionuserarchivo = self.buscauserarchivo(user)
+
+            if  posicionuserarchivo != -1: #controla el caso de que se intente
+            #borrar un user inexistente
+
+                #hay que borrar al user tanto del archivo ...
+                self.eliminalineasarchivo(posicionuserarchivo)
+                #... como de la lista temporal
+                if user in self.diccionariotokens:
+                    print(f"Se ha eliminado la entrada: {self.diccionariotokens.pop(user)}")
         else:
-            raise IceFlix.Unauthorized 
+            raise IceFlix.Unauthorized
 
 
 class AuthenticatorApp(Ice.Application):
@@ -189,65 +191,58 @@ class AuthenticatorApp(Ice.Application):
 
     def __init__(self):
         super().__init__()
-        self.servant = Authenticator()
         self.proxy = None
         self.adapter = None
-        self.tiempoValidezServicio = 25
+        self.servant = None
+        self.tiempovalidezservicio = 25
 
-    def renuevaServicio(self, obj_main):
-
+    def renuevaservicio(self, obj_main):
+        """Envía periódicamente mensaje de """
+        """anunciación al servicio Main""" # pylint:disable=W0105
         while True:
             obj_main.announce(obj_main, "authenticator")
-            sleep(self.tiempoValidezServicio)
+            sleep(self.tiempovalidezservicio)
 
     def run(self, args):
 
-        global tokenAdministracion #QUIZÁ CAMBIAR LUEGO
-
         """Ejecuta la aplicación, añadiendo los objetos necesarios al adaptador."""
+
         logging.info("Running Authenticator application")
-        broker = self.communicator()
 
         #OBTENCIÓN DEL TOKEN DE ADMINISTRACIÓN
-        properties = broker.getProperties()
-        tokenAdministracion = properties.getProperty("AdminToken")
+        properties = self.communicator().getProperties()
+        tokenadministracion = properties.getProperty("AdminToken")
 
-        self.adapter = broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter","tcp")
+        self.servant = Authenticator(tokenadministracion)
+
+        self.adapter = (self.communicator()
+        .createObjectAdapterWithEndpoints("AuthenticatorAdapter","tcp"))
         self.adapter.activate()
 
-        proxy_authenticator = self.adapter.add(self.servant, broker.stringToIdentity("authenticator"))
-        proxy_authenticator = IceFlix.AuthenticatorPrx.uncheckedCast(proxy_authenticator) 
-        print(f'\n\nThe proxy of the authenticator is "{proxy_authenticator}"\n\n')
-        #self.proxy = self.adapter.addWithUUID(self.servant)
-        
-        proxy_main = broker.stringToProxy(sys.argv[1])
+        self.proxy = self.adapter.addWithUUID(self.servant)
+        self.proxy = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)
+        print(f'\n\nThe proxy of the authenticator is "{self.proxy}"\n\n')
+
+        proxy_main = self.communicator().stringToProxy(sys.argv[1])
         main = IceFlix.MainPrx.checkedCast(proxy_main)
 
         if not main:
             raise RuntimeError('Invalid proxy')
-      
-        #BORRAR LUEGO
-        listaTokens.append(['EnriqueAP6','token1',10])
-        listaTokens.append(['user2','token2',3])
-        listaTokens.append(['eap_6','token3',6])
-        listaTokens.append(['user4','token4',8])
-        listaTokens.append(['efjvdj','token5',5])
-        listaTokens.append(['user6','token6',2])
-        listaTokens.append(['user','token7',0])
-        #######
 
-        main.newService(proxy_authenticator, "authenticator")
-        
+        service_id = uuid.uuid4()
+        main.newService(self.proxy, str(service_id))
+
         #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
-        hiloEnvejeceTokens = threading.Thread(target = envejeceLista)
-        hiloEnvejeceTokens.start()
+        hiloenvejecetokens = threading.Thread(target = self.servant.envejecelista)
+        hiloenvejecetokens.start()
 
-        #hilo para enviar mensajes "announce()" al servicio main cada cierto tiempo establecido en el enunciado
-        hiloRenuevaServicio = threading.Thread(target = self.renuevaServicio, args=(main,))
-        hiloRenuevaServicio.start()
+        #hilo para enviar mensajes "announce()" al servicio main cada
+        #cierto tiempo establecido en el enunciado
+        hilorenuevaservicio = threading.Thread(target = self.renuevaservicio, args=(main,))
+        hilorenuevaservicio.start()
 
         self.shutdownOnInterrupt()
-        broker.waitForShutdown()
+        self.communicator().waitForShutdown()
 
         return 0
 
