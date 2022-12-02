@@ -5,6 +5,4 @@
 [USUARIO] efjvdj
 [CONTRASEÑA] odiewsnjd
 [USUARIO] user
-[CONTRASEÑA] password
-[USUARIO] hola
-[CONTRASEÑA] adios
+[CONTRASEÑA] hola
