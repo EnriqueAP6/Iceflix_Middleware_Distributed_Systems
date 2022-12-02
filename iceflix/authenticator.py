@@ -20,7 +20,7 @@ class Authenticator(IceFlix.Authenticator):
 
     def __init__(self, tokenadministracion):
         self.contadortokenscreados = 0
-        self.tiempovalideztokens= 10
+        self.tiempovalideztokens= 120
         # los 2 minutos durante los cuales los token mantienen su validez
         self.diccionariotokens = {}
         #se guardará el token y el tiempo de vigencia para cada usuario
@@ -37,7 +37,7 @@ class Authenticator(IceFlix.Authenticator):
 
             with self.candadolistatokens:
                 #controlo la lista temporal con sección crítica
-                print(self.diccionariotokens)
+               
                 diccionarioaux = self.diccionariotokens.copy()
                 for entrada in diccionarioaux:
                     if (self.diccionariotokens[entrada][1] + 1) == self.tiempovalideztokens:
@@ -250,6 +250,7 @@ class AuthenticatorApp(Ice.Application):
         """Envía periódicamente mensaje de """
         """anunciación al servicio Main""" # pylint:disable=W0105
         while True:
+            print("Enviando announce")
             obj_main.announce(self.proxy, self.service_id)
             time.sleep(self.tiempovalidezservicio)
 
@@ -280,6 +281,7 @@ class AuthenticatorApp(Ice.Application):
             raise RuntimeError('Invalid proxy')
 
         self.service_id = str(uuid.uuid4())
+        print("Enviando newService")
         main.newService(self.proxy, self.service_id)
 
         #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
