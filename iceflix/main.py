@@ -4,6 +4,7 @@ import logging
 import sys
 import Ice
 from time import sleep
+import hashlib
 
 try:
     import IceFlix
@@ -31,19 +32,30 @@ class Main(IceFlix.Main):
         # TODO: implement
         return None
 
+    def getsha256cadena(self,cadena):
+      hashsha  = hashlib.sha256()
+      hashsha.update(cadena.encode())
+      return hashsha.hexdigest() 
+
     def newService(self, proxy, service_id, current):  # pylint:disable=invalid-name, unused-argument
         "Receive a proxy of a new service."
         print("Recibido mensaje NEWSERVICE()")
         authenticator = IceFlix.AuthenticatorPrx.checkedCast(proxy)
         
         try:
-            authenticator.addUser("hola","adios","1234")  #usuario nuevo
-            authenticator.addUser("EnriqueAP6","dsvfd ","1234")  #usuario ya registrado
+            print("Añadiendo usuario nuevo")
+            authenticator.addUser("hola",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+            print("Añadiendo usuario registrado")
+            #authenticator.addUser("EnriqueAP6",self.getsha256cadena("dsvfd "),"1234")  #usuario ya registrado
             sleep(3)
-            authenticator.addUser("Enri","adios","1234")  #usuario nuevo
+            print("Añadiendo usuario nuevo")
+            authenticator.addUser("Enri",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+            print("Eliminado usuario existente")
             authenticator.removeUser("Enri","1234") #borrado usuario existente
+            print("Eliminando usuario inexistente")
             authenticator.removeUser("djfvdb ","1234") #borrado usuario inexistente
-            tokenUsuario = authenticator.refreshAuthorization("hola","adios") #usuario existente
+            print("Pidiendo token nuevo")
+            tokenUsuario = authenticator.refreshAuthorization("hola",self.getsha256cadena("adios")) #usuario existente
             #print("¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN 1234EW3 ? --> " + str(authenticator.isAuthorized("1234EW3"))) #usuario inexistente
             print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario))) #usuario existente
             print("¿ES ADMIN EL USUARIO CON EL TOKEN 1234 ? --> " + str(authenticator.isAdmin("1234"))) #administrador

@@ -25,6 +25,10 @@ class Authenticator(IceFlix.Authenticator):
         self.diccionariotokens = {}
         #se guardará el token y el tiempo de vigencia para cada usuario
         self.nombrearchivo = "bbddCredenciales.txt"
+        #operación necesaria para inicializar el fichero
+        #en caso de no existir previamente
+        basedatos = open(self.nombrearchivo,"a", encoding="utf-8") # pylint:disable=R1732
+        basedatos.close()
         self.tokenadministracion = tokenadministracion
         #necesitará una serie de candados
         self.candadoarchivotexto = threading.Lock()
@@ -37,11 +41,12 @@ class Authenticator(IceFlix.Authenticator):
 
             with self.candadolistatokens:
                 #controlo la lista temporal con sección crítica
-               
+
                 diccionarioaux = self.diccionariotokens.copy()
+
                 for entrada in diccionarioaux:
                     if (self.diccionariotokens[entrada][1] + 1) == self.tiempovalideztokens:
-                        print(f"Se ha eliminado la entrada: {self.diccionariotokens.pop(entrada)}")
+                        print((f"Eliminada la entrada:{self.diccionariotokens.pop(entrada)}\n"))
                     else:
                         self.diccionariotokens[entrada][1] += 1
 
@@ -63,7 +68,7 @@ class Authenticator(IceFlix.Authenticator):
             # tiempo expirado (pero siga en la BD)
             # también se controla el caso de que el sistema esté recién iniciado y la lista temporal
             # vacía
-            print(f"Se ha añadido la entrada: {[tokenusuario,0]}")
+            print(f"Añadida la entrada: {[tokenusuario,0]}\n")
             self.diccionariotokens[user] = [tokenusuario,0]
 
         return tokenusuario
@@ -121,7 +126,7 @@ class Authenticator(IceFlix.Authenticator):
                 archivoescribir.write("[USUARIO] "+ user+"\n")
                 archivoescribir.write("[CONTRASEÑA] " + password+"\n")
                 archivoescribir.close()
-            print(f"Se han añadido los credenciales de: {user}")
+            print(f"Añadidas las credenciales de: {user}")
 
     def eliminalineasarchivo(self, numlinea):
         """Reescribe el contenido del archivo de texto usado como"""
@@ -149,6 +154,7 @@ class Authenticator(IceFlix.Authenticator):
         if self.compruebacredenciales(user, passwordHash): # pylint:disable=R1705
         #pongo True para que tenga en cuenta
         #usuario y contraseña en la comprobación
+            print("Solicitado un refresco del token de: " + user)
             tokennuevo = self.asociausuariotoken(user)
             return tokennuevo
         else:
@@ -168,7 +174,7 @@ class Authenticator(IceFlix.Authenticator):
 
         return tokenvalido
 
-    def whois(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
+    def whois(self, userToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member, R1710
         "Permite descubrir el nombre del usuario a partir de un token válido."
 
         if self.isAuthorized(userToken):
@@ -176,7 +182,7 @@ class Authenticator(IceFlix.Authenticator):
             with self.candadolistatokens:
             #controlo la lista temporal con sección crítica
 
-                for entrada in self.diccionariotokens:
+                for entrada in self.diccionariotokens: # pylint:disable=C0206
                     if userToken == self.diccionariotokens[entrada][0]:
                         return entrada
 
@@ -186,7 +192,7 @@ class Authenticator(IceFlix.Authenticator):
     def isAdmin(self, adminToken, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
         "Devuelve un valor booleano para comprobar si el token proporcionado"
         "corresponde o no con el administrativo." # pylint:disable=W0105
-        if adminToken == self.tokenadministracion : # pylint:disable=R1705
+        if adminToken == self.tokenadministracion: # pylint:disable=R1705, R1703
             return True
         else:
             return False
@@ -205,6 +211,9 @@ class Authenticator(IceFlix.Authenticator):
 
                 #le asigno un token válido y se pone su timpo de vigencia a 0
                 self.asociausuariotoken(user)
+            else:
+                #si se intenta añadir un usuario que ya existía
+                raise IceFlix.Unauthorized
 
         else:
             raise IceFlix.Unauthorized
@@ -222,14 +231,14 @@ class Authenticator(IceFlix.Authenticator):
                 #hay que borrar al user tanto del archivo ...
                 self.eliminalineasarchivo(posicionuserarchivo)
 
-                print(f"Se han eliminado los credenciales de: {user}")
+                print(f"Eliminadas las credenciales de: {user}")
                 #... como de la lista temporal
 
                 with self.candadolistatokens:
                 #controlo la lista temporal con sección crítica
 
                     if user in self.diccionariotokens:
-                        print(f"Se ha eliminado la entrada: {self.diccionariotokens.pop(user)}")
+                        print(f"Eliminada la entrada: {self.diccionariotokens.pop(user)}\n")
 
         else:
             raise IceFlix.Unauthorized
