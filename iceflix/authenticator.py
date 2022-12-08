@@ -276,7 +276,7 @@ class AuthenticatorApp(Ice.Application):
         self.servant = Authenticator(tokenadministracion)
 
         self.adapter = (self.communicator()
-        .createObjectAdapterWithEndpoints("AuthenticatorAdapter","tcp"))
+        .createObjectAdapterWithEndpoints("AuthenticatorAdapter",properties.getProperty("AuthenticatorAdapter.Endpoints")))
         self.adapter.activate()
 
         self.proxy = self.adapter.addWithUUID(self.servant)
