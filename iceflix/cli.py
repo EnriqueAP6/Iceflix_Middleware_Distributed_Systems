@@ -30,4 +30,3 @@ def authentication_service():
         os._exit(1)
     return 0
     
-authentication_service()

@@ -3,15 +3,14 @@
 import logging
 import time
 import threading
-import sys
 import uuid
+import os
 import Ice # pylint:disable=import-error
 
 try:
     import IceFlix
 
 except ImportError:
-    import os
     Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
     import IceFlix
 
@@ -261,6 +260,7 @@ class AuthenticatorApp(Ice.Application):
         """Envía periódicamente mensaje de """
         """anunciación al servicio Main""" # pylint:disable=W0105
         while True:
+            time.sleep(self.tiempovalidezservicio)
             print("Enviando announce")
             try:
                 obj_main.announce(self.proxy, self.service_id)
@@ -268,8 +268,6 @@ class AuthenticatorApp(Ice.Application):
                 print("[ERROR]: Se ha producido un fallo al renovar "
                 +"credenciales ante el servicio main\n")
                 os._exit(1) # pylint:disable=W0212
-
-            time.sleep(self.tiempovalidezservicio)
 
     def run(self, args):
 

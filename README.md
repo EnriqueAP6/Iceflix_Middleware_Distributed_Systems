@@ -17,3 +17,24 @@ It contains the following files and directories:
 - `setup.cfg` is a Python distribution configuration file for Setuptools.
   It needs to be modified in order to adeccuate to the package name and
   console handler functions.
+
+# UTILIZACIÓN
+
+  Para llevar a cabo la ejecución del authenticator, lo primero que debes hacer es escribir el proxy del servicio main al que quieras que se conecte dentro del archivo **configs/authenticator.config** (en la propiedad "MainProxy", tras borrar el valor previamente escrito).
+
+  Una vez realizado lo anterior, simplemente debes escribir por terminal (estando dentro del directorio del repositorio) lo siguiente:
+    ./run_service
+  
+  A partir de ese momento, el servicio main con el que se esté probando mi programa podrá interactuar con él utilizando cualesquiera de los 6 métodos definidos en la interfaz y que debe ofrecer todo servicio authenticator. 
+  Mi código generará mensajes por pantalla a raíz de la conexión con el servicio main, su desconexión (se manejan errores), envío de mensajes newService y announce; y del registro/eliminación de credenciales de usuario tanto en la lista de tokens temporales como en la base de datos.
+
+
+# BASE DE DATOS USADA
+
+  A la hora de registrar todos los nombres de usuario y contreña que se desee por el servicio main, empleo un archivo de texto llamado **resources/bbddCredenciales.txt** (situado como puede verse en la carpeta "resources"). En él he dejado colocados 3 credenciales completas para que quien pruebe mi código pueda realizar todo tipo de comprobaciones.
+
+# CALIFICACIÓN PYLINT
+
+  Tras realizar las mejoras apropiadas y eliminando avisos que conscientemente sé que no son necesarios, la herramienta pylint devuelve una nota de 10.00. 
+
+  
