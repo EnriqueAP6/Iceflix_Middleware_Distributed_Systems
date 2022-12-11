@@ -18,13 +18,13 @@ except ImportError:
 class Authenticator(IceFlix.Authenticator):
     """Sirviente para la interfaz IceFlix.Authenticator"""
 
-    def __init__(self, tokenadministracion):
+    def __init__(self, tokenadministracion, tiempovalideztokens, nombrearchivo):
         self.contadortokenscreados = 0
-        self.tiempovalideztokens= 120
+        self.tiempovalideztokens= tiempovalideztokens
         # los 2 minutos durante los cuales los token mantienen su validez
         self.diccionariotokens = {}
         #se guardará el token y el tiempo de vigencia para cada usuario
-        self.nombrearchivo = "bbddCredenciales.txt"
+        self.nombrearchivo = nombrearchivo
         #operación necesaria para inicializar el fichero
         #en caso de no existir previamente
         basedatos = open(self.nombrearchivo,"a", encoding="utf-8") # pylint:disable=R1732
@@ -250,17 +250,25 @@ class AuthenticatorApp(Ice.Application):
     def __init__(self):
         super().__init__()
         self.proxy = None
-        self.adapter = None
         self.servant = None
-        self.tiempovalidezservicio = 25
+        self.tiempovalidezservicio = None
         self.service_id = None
+        self.hilorenuevaservicio = None
+        self.hiloenvejecetokens = None
+        self.mainservice = None
 
     def renuevaservicio(self, obj_main):
         """Envía periódicamente mensaje de """
         """anunciación al servicio Main""" # pylint:disable=W0105
         while True:
             print("Enviando announce")
-            obj_main.announce(self.proxy, self.service_id)
+            try:
+                obj_main.announce(self.proxy, self.service_id)
+            except Ice.Exception:
+                print("[ERROR]: Se ha producido un fallo al renovar "
+                +"credenciales ante el servicio main\n")
+                os._exit(1) # pylint:disable=W0212
+
             time.sleep(self.tiempovalidezservicio)
 
     def run(self, args):
@@ -269,43 +277,51 @@ class AuthenticatorApp(Ice.Application):
 
         logging.info("Running Authenticator application")
 
-        #OBTENCIÓN DEL TOKEN DE ADMINISTRACIÓN
+        #OBTENCIÓN DE LOS DATOS DEL ARCHIVO DE CONFIGURACIÓN
         properties = self.communicator().getProperties()
         tokenadministracion = properties.getProperty("AdminToken")
+        tiempovalideztokens = int(properties.getProperty("TimeTokens"))
+        self.tiempovalidezservicio = int(properties.getProperty("TimeAnnounce"))
+        nombrearchivo = properties.getProperty("BDname")
+        proxy_main = self.communicator().propertyToProxy("MainProxy")
 
-        self.servant = Authenticator(tokenadministracion)
+        self.servant = Authenticator(tokenadministracion, tiempovalideztokens, nombrearchivo)
 
-        self.adapter = (self.communicator()
-        .createObjectAdapterWithEndpoints("AuthenticatorAdapter",properties.getProperty("AuthenticatorAdapter.Endpoints")))
-        self.adapter.activate()
+        adapter = (self.communicator()
+        .createObjectAdapterWithEndpoints
+        ("AuthenticatorAdapter",properties.getProperty("AuthenticatorAdapter.Endpoints")))
+        adapter.activate()
 
-        self.proxy = self.adapter.addWithUUID(self.servant)
+        self.proxy = adapter.addWithUUID(self.servant)
         self.proxy = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)
         print(f'\n\nThe proxy of the authenticator is "{self.proxy}"\n\n')
 
-        proxy_main = self.communicator().stringToProxy(sys.argv[1])
-        main = IceFlix.MainPrx.checkedCast(proxy_main)
-
-        if not main:
-            raise RuntimeError('Invalid proxy')
+        try:
+            self.mainservice = IceFlix.MainPrx.checkedCast(proxy_main)
+        except Ice.Exception:
+            print("[ERROR]: Se ha producido un fallo al contactar con el servicio main\n")
+            os._exit(1) # pylint:disable=W0212
 
         self.service_id = str(uuid.uuid4())
-        print("Enviando newService")
-        main.newService(self.proxy, self.service_id)
 
-        #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
-        hiloenvejecetokens = threading.Thread(target = self.servant.envejecelista)
-        hiloenvejecetokens.start()
+        print("Enviando newService")
+        self.mainservice.newService(self.proxy, self.service_id)
+
 
         #hilo para enviar mensajes "announce()" al servicio main cada
         #cierto tiempo establecido en el enunciado
-        hilorenuevaservicio = threading.Thread(target = self.renuevaservicio, args=(main,))
-        hilorenuevaservicio.start()
+        self.hilorenuevaservicio = (threading
+        .Thread(target = self.renuevaservicio, args=(self.mainservice,)))
+        self.hilorenuevaservicio.start()
+
+        #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
+        self.hiloenvejecetokens = threading.Thread(target = self.servant.envejecelista)
+        self.hiloenvejecetokens.start()
 
         self.shutdownOnInterrupt()
         self.communicator().waitForShutdown()
 
         return 0
 
-s = AuthenticatorApp()
-sys.exit(s.main(sys.argv))
+#s = AuthenticatorApp()
+#sys.exit(s.main(sys.argv))
