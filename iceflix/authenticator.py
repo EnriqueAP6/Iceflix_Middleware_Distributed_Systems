@@ -5,6 +5,7 @@ import time
 import threading
 import uuid
 import os
+#import sys
 import Ice # pylint:disable=import-error
 
 try:
@@ -122,6 +123,7 @@ class Authenticator(IceFlix.Authenticator):
             #controlo el archivo persistente con sección crítica
 
             with open(self.nombrearchivo,"a", encoding="utf-8") as archivoescribir:
+                archivoescribir.write("\n")
                 archivoescribir.write("[USUARIO] "+ user+"\n")
                 archivoescribir.write("[CONTRASEÑA] " + password+"\n")
                 archivoescribir.close()
