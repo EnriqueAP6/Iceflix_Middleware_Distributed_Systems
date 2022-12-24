@@ -10,10 +10,61 @@ import Ice # pylint:disable=import-error
 
 try:
     import IceFlix
+    import IceStorm
 
 except ImportError:
     Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
     import IceFlix
+    import IceStorm
+
+
+registro_authenticators = {}
+registro_mains = {}
+
+class AuthenticatorAnnouncements(IceFlix.Announcement):
+    
+    def __init__(self,service_id):
+
+        self.id_authenticator = service_id
+        self.candadoregistroauthenticators = threading.Lock()
+        self.candadoregistromains = threading.Lock()
+    
+    def announce(self, service, serviceId, current: Ice.Current=None):
+        print("¡¡¡Recibido un announce!!!") #quitar luego
+       
+        if (service.ice_isA('::IceFlix::Main') and not self.compruebaserviceidsauthenticators(serviceId,registro_mains,self.candadoregistromains)):
+            print("Recibido desde un Main el serviceId: " + serviceId)
+            with self.candadoregistromains:
+                registro_mains[serviceId] = service
+
+        if (service.ice_isA('::IceFlix::Authenticator') and serviceId != self.id_authenticator and not self.compruebaserviceidsauthenticators(serviceId,registro_authenticators,self.candadoregistroauthenticators)):
+            print("Recibido desde un Authenticator el serviceId: " + serviceId)
+            with self.candadoregistroauthenticators:
+                registro_authenticators[serviceId] = service
+
+
+
+    def compruebaserviceidsauthenticators(self, service_id, diccionario, candado):
+        
+        idexistente = False
+
+        with candado:
+            for valor in diccionario.values():
+                    if service_id == valor[0]:
+                        idexistente = True
+                        break
+
+        return idexistente
+
+    def anunciarperiodicamente(self,publicador_subscriptor,proxy_authenticator,tiempo_announce):
+        while True:
+            print(registro_authenticators)
+            print(registro_mains)
+            print("Va a anunciarse el authenticator")
+            publicador_subscriptor.announce(proxy_authenticator,self.id_authenticator)
+            time.sleep(tiempo_announce)
+
+
 
 class Authenticator(IceFlix.Authenticator):
     """Sirviente para la interfaz IceFlix.Authenticator"""
@@ -251,25 +302,13 @@ class AuthenticatorApp(Ice.Application):
     def __init__(self):
         super().__init__()
         self.proxy = None
-        self.servant = None
+        self.servantauthenticator = None
         self.tiempovalidezservicio = None
         self.service_id = None
         self.hilorenuevaservicio = None
         self.hiloenvejecetokens = None
-        self.mainservice = None
+        self.sirvienteanunciador = None
 
-    def renuevaservicio(self, obj_main):
-        """Envía periódicamente mensaje de """
-        """anunciación al servicio Main""" # pylint:disable=W0105
-        while True:
-            time.sleep(self.tiempovalidezservicio)
-            print("Enviando announce")
-            try:
-                obj_main.announce(self.proxy, self.service_id)
-            except Ice.Exception:
-                print("[ERROR]: Se ha producido un fallo al renovar "
-                +"credenciales ante el servicio main\n")
-                os._exit(1) # pylint:disable=W0212
 
     def run(self, args):
 
@@ -283,45 +322,70 @@ class AuthenticatorApp(Ice.Application):
         tiempovalideztokens = int(properties.getProperty("TimeTokens"))
         self.tiempovalidezservicio = int(properties.getProperty("TimeAnnounce"))
         nombrearchivo = properties.getProperty("BDname")
-        proxy_main = self.communicator().propertyToProxy("MainProxy")
 
-        self.servant = Authenticator(tokenadministracion, tiempovalideztokens, nombrearchivo)
+        self.servantauthenticator = Authenticator(tokenadministracion, tiempovalideztokens, nombrearchivo)
 
         adapter = (self.communicator()
         .createObjectAdapterWithEndpoints
         ("AuthenticatorAdapter",properties.getProperty("AuthenticatorAdapter.Endpoints")))
         adapter.activate()
 
-        self.proxy = adapter.addWithUUID(self.servant)
+        self.proxy = adapter.addWithUUID(self.servantauthenticator)
         self.proxy = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)
         print(f'\n\nThe proxy of the authenticator is "{self.proxy}"\n\n')
 
-        try:
-            self.mainservice = IceFlix.MainPrx.checkedCast(proxy_main)
-        except Ice.Exception:
-            print("[ERROR]: Se ha producido un fallo al contactar con el servicio main\n")
-            os._exit(1) # pylint:disable=W0212
-
         self.service_id = str(uuid.uuid4())
 
-        print("Enviando newService")
-        self.mainservice.newService(self.proxy, self.service_id)
 
 
-        #hilo para enviar mensajes "announce()" al servicio main cada
-        #cierto tiempo establecido en el enunciado
-        self.hilorenuevaservicio = (threading
-        .Thread(target = self.renuevaservicio, args=(self.mainservice,)))
-        self.hilorenuevaservicio.start()
+
+        
+
+        #CREACIÓN DE CANALES , PUBLICADORES Y SUBSCRIPTORES
+        
+        
+        topic_manager_str_prx = "IceStorm/TopicManager -t:tcp -h localhost -p 10000"
+        topic_manager = IceStorm.TopicManagerPrx.checkedCast(
+        self.communicator().stringToProxy(topic_manager_str_prx),)
+
+        if not topic_manager:
+            raise RuntimeError("Invalid TopicManager proxy")
+
+        topic_name = "Announcements"
+        try:
+            topic = topic_manager.create(topic_name)
+        except IceStorm.TopicExists:
+            topic = topic_manager.retrieve(topic_name)
+
+
+        self.sirvienteanunciador = AuthenticatorAnnouncements(self.service_id)
+        proxyAnunciador = adapter.addWithUUID(self.sirvienteanunciador)
+        
+        qos = {}
+
+        subscriptor_publicador = topic.subscribeAndGetPublisher(qos, proxyAnunciador)
+        subscriptor_publicador = IceFlix.AnnouncementPrx.uncheckedCast(subscriptor_publicador)
+
+
+
+
+
+
+
+
+
+        self.hiloAnnouncement = threading.Thread(target = self.sirvienteanunciador.anunciarperiodicamente,args=(subscriptor_publicador,self.proxy,self.tiempovalidezservicio,))
+        self.hiloAnnouncement.start()
 
         #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
-        self.hiloenvejecetokens = threading.Thread(target = self.servant.envejecelista)
+        self.hiloenvejecetokens = threading.Thread(target = self.servantauthenticator.envejecelista)
         self.hiloenvejecetokens.start()
 
         self.shutdownOnInterrupt()
         self.communicator().waitForShutdown()
+        topic.unsubscribe(proxyAnunciador)
 
         return 0
-
-#s = AuthenticatorApp()
-#sys.exit(s.main(sys.argv))
+import sys
+s = AuthenticatorApp()
+sys.exit(s.main(sys.argv))
