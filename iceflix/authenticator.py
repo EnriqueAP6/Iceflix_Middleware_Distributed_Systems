@@ -30,29 +30,37 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
         self.id_authenticator = service_id
     
     def announce(self, service, serviceId, current: Ice.Current=None):
-        print("[AUTHENTICATOR_ANNOUNCEMENTS] ¡¡¡Recibido un announce!!!") #quitar luego
        
-        if (service.ice_isA('::IceFlix::Main') and not self.compruebaserviceidsauthenticators(serviceId,registro_mains,candadoregistromains)):
+        if service.ice_isA('::IceFlix::Main'): 
 
-            with candadoregistromains:
-                print("[AUTHENTICATOR_ANNOUNCEMENTS] Registro del serviceId de un Main: " + serviceId)
+            with candadoregistromains: 
+         
+                if self.compruebaserviceids(serviceId,registro_mains):
+                    print("[AUTHENTICATOR_ANNOUNCEMENTS] Refresco del serviceId de un Main: " + serviceId + "\n")
+                else:
+                    print("[AUTHENTICATOR_ANNOUNCEMENTS] Registro del serviceId de un Main: " + serviceId + "\n")
+        
                 registro_mains[serviceId] = [service,0]
 
-        if (service.ice_isA('::IceFlix::Authenticator')  and serviceId != self.id_authenticator and not self.compruebaserviceidsauthenticators(serviceId,registro_authenticators,candadoregistroauthenticators)):
+
+        elif service.ice_isA('::IceFlix::Authenticator')  and serviceId != self.id_authenticator:
             
             with candadoregistroauthenticators:
-                print("[AUTHENTICATOR_ANNOUNCEMENTS] Registro del serviceId de un Authenticator:  " + serviceId)
+
+                if self.compruebaserviceids(serviceId,registro_authenticators):
+                    print("[AUTHENTICATOR_ANNOUNCEMENTS] Refresco del serviceId de un Authenticator:  " + serviceId + "\n")
+                else:
+                    print("[AUTHENTICATOR_ANNOUNCEMENTS] Registro del serviceId de un Authenticator:  " + serviceId + "\n")
                 registro_authenticators[serviceId] = [service,0]
 
-    def compruebaserviceidsauthenticators(self, service_id, diccionario, candado):
+    def compruebaserviceids(self, service_id, diccionario):
         
         idexistente = False
 
-        with candado:
-            for entrada in diccionario:
-                    if service_id == entrada:
-                        idexistente = True
-                        break
+        for entrada in diccionario:
+            if service_id == entrada:
+                idexistente = True
+                break
 
         return idexistente
 
@@ -61,11 +69,11 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
         while True:
             print(registro_authenticators) #quitar luego
             print(registro_mains) #quitar luego
-            print("[AUTHENTICATOR_ANNOUNCEMENTS] Va a anunciarse el authenticator") #quitar luego
+            print("[AUTHENTICATOR_ANNOUNCEMENTS] Va a anunciarse el authenticator\n") #quitar luego
             publicador_subscriptor.announce(proxy_authenticator,self.id_authenticator)
             time.sleep(tiempo_announce)
 
-    def envejecediccionario(self, diccionario, candado, tiempo_vigencia):
+    def envejecediccionario(self,diccionario, candado, tiempo_vigencia):
 
         while True:
 
@@ -79,7 +87,6 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
                         print((f"[AUTHENTICATOR_ANNOUNCEMENTS] Eliminado el serviceId: {diccionario.pop(entrada)}\n"))
                     else:
                         diccionario[entrada][1] += 1
-
             time.sleep(1)
 
 
@@ -91,25 +98,25 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
 
     def newToken(self, user, token, serviceId, current: Ice.Current=None):
         
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newToken({user},{token},{serviceId})")
+        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newToken({user},{token},{serviceId})\n")
         if(self.compruebaserviceidsauthenticators(serviceId,registro_authenticators,candadoregistroauthenticators)):
             self.referencia_authenticator.imponetokenusuario(user, token) 
 
     def revokeToken(self, token, serviceId, current: Ice.Current=None):
         
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido revokeToken({token},{serviceId})")
+        print(f"[AUTHENTICATOR_USERUPDATES] Recibido revokeToken({token},{serviceId})\n")
         if(self.compruebaserviceidsauthenticators(serviceId,registro_authenticators,candadoregistroauthenticators)):
             self.referencia_authenticator.eliminaentradatoken(token)
 
     def newUser(self, user, passwordHash, serviceId, current: Ice.Current=None):
         
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newUser({user},{passwordHash},{serviceId})")
+        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newUser({user},{passwordHash},{serviceId})\n")
         if(self.compruebaserviceidsauthenticators(serviceId,registro_authenticators,candadoregistroauthenticators)):
             self.referencia_authenticator.addUser(user, passwordHash, self.tokenadministracion)
     
     def removeUser(self, user, serviceId, current: Ice.Current=None):
         
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newUser({user},{serviceId})")
+        print(f"[AUTHENTICATOR_USERUPDATES] Recibido removeUser({user},{serviceId})\n")
         if(self.compruebaserviceidsauthenticators(serviceId,registro_authenticators,candadoregistroauthenticators)):
             self.referencia_authenticator.removeUser(user, self.tokenadministracion)
 
@@ -124,6 +131,23 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
                         break
 
         return idexistente
+
+
+class AuthenticatorData(IceFlix.AuthenticatorData):
+
+    def __init__(self):
+        self.adminToken = None
+        self.currentUsers = None
+        self.activeTokens = None
+
+    def set_admin_token(self, admin_token):
+        self.adminToken = admin_token
+    
+    def set_current_users(self, current_users):
+        self.currentUsers = current_users #el argumento será un diccionario
+    
+    def set_active_tokens(self, active_tokens):
+        self.activeTokens = active_tokens #el argumento será un diccionario
 
 
 class Authenticator(IceFlix.Authenticator):
@@ -148,11 +172,19 @@ class Authenticator(IceFlix.Authenticator):
         self.service_id = None
         self.publicador_userupdates = None
 
+        self.basedatosvalida = False
+
     def setpublicador(self, publicador_userupdates):
         self.publicador_userupdates = publicador_userupdates
 
     def setserviceid(self, service_id):
         self.service_id = service_id
+
+    def setbasedatosvalida(self, basedatosvalida):
+        self.basedatosvalida = basedatosvalida
+
+    def settokenadministracion(self, tokenadministracion):
+        self.tokenadministracion = tokenadministracion
 
     def envejecelista(self):
         """Controla la validez de los token con el paso del tiempo"""
@@ -265,7 +297,7 @@ class Authenticator(IceFlix.Authenticator):
                 archivoescribir.write("[USUARIO] "+ user+"\n")
                 archivoescribir.write("[CONTRASEÑA] " + password+"\n")
                 archivoescribir.close()
-            print(f"[AUTHENTICATOR] Añadidas las credenciales de: {user}")
+            print(f"[AUTHENTICATOR] Añadidas las credenciales de: {user}\n")
 
         self.publicador_userupdates.newUser(user, password, self.service_id)
 
@@ -295,7 +327,7 @@ class Authenticator(IceFlix.Authenticator):
         if self.compruebacredenciales(user, passwordHash): # pylint:disable=R1705
         #pongo True para que tenga en cuenta
         #usuario y contraseña en la comprobación
-            print("[AUTHENTICATOR] Solicitado un refresco del token de: " + user)
+            print("[AUTHENTICATOR] Solicitado un refresco del token de: " + user+ "\n")
             tokennuevo = self.asociausuariotoken(user)
             return tokennuevo
         else:
@@ -371,7 +403,7 @@ class Authenticator(IceFlix.Authenticator):
                 #hay que borrar al user tanto del archivo ...
                 self.eliminalineasarchivo(posicionuserarchivo)
 
-                print(f"Eliminadas las credenciales de: {user}")
+                print(f"Eliminadas las credenciales de: {user}\n")
                 #... como de la lista temporal
 
                 with self.candadolistatokens:
@@ -384,6 +416,54 @@ class Authenticator(IceFlix.Authenticator):
 
         else:
             raise IceFlix.Unauthorized
+
+    def crea_diccionario_active_tokens(self):
+
+        diccionario_envio = {}
+        
+        with self.candadolistatokens:
+
+            for entrada in self.diccionariotokens:
+                print(entrada + " : " +  self.diccionariotokens[entrada][0])
+                diccionario_envio[entrada] = self.diccionariotokens[entrada][0]
+
+        return diccionario_envio
+
+    def crea_diccionario_current_users(self):
+
+        diccionario_envio = {}
+        lineasleidas = []
+        user = ""
+        password = ""
+
+        with self.candadoarchivotexto:
+            #controlo el archivo persistente con sección crítica
+
+            with open(self.nombrearchivo,"r", encoding="utf-8") as archivoleer:
+                lineasleidas = archivoleer.readlines()
+                archivoleer.close()
+
+        for numlinea in range(len(lineasleidas)): # pylint:disable=C0200
+
+                if len("[USUARIO] ") < len(lineasleidas[numlinea]) and lineasleidas[numlinea][:len("[USUARIO] ")] == "[USUARIO] ":
+                    user = lineasleidas[numlinea][len("[USUARIO] "):-1]
+                    password = lineasleidas[numlinea+1][len("[CONTRASEÑA] "):-1]
+                   
+                    diccionario_envio[user] = password
+
+        return diccionario_envio
+                
+
+
+    def bulkUpdate(self, current: Ice.Current=None):
+
+        authenticator_data = AuthenticatorData()
+        authenticator_data.set_admin_token(self.tokenadministracion)
+        authenticator_data.set_active_tokens(self.crea_diccionario_active_tokens())
+        authenticator_data.set_current_users(self.crea_diccionario_current_users())
+
+        return authenticator_data
+
 
 
 class AuthenticatorApp(Ice.Application):
@@ -398,7 +478,8 @@ class AuthenticatorApp(Ice.Application):
         self.sirvienteuserupdate = None
         self.hilorenuevaservicio = None
         self.hiloenvejecetokens = None
-        self.hiloenvejeceids = None
+        self.hiloenvejeceidsauthenticator = None
+        self.hiloenvejeceidsmain = None
 
 
     def run(self, args):
@@ -413,6 +494,7 @@ class AuthenticatorApp(Ice.Application):
         tiempovalideztokens = int(properties.getProperty("TimeTokens"))
         tiempovalidezannounce = int(properties.getProperty("TimeAnnounce"))
         tiempovalidezids = int(properties.getProperty("TimeServiceIds"))
+        tiempo_arranque = int(properties.getProperty("TimeStart"))
 
         nombrearchivo = properties.getProperty("BDname")
 
@@ -425,7 +507,7 @@ class AuthenticatorApp(Ice.Application):
 
         self.proxy = adapter.addWithUUID(self.servantauthenticator)
         print(f'\n\n[AUTHENTICATOR_APP] The proxy of the authenticator is "{self.proxy}"\n\n')
-        self.proxy = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)  #esto ya es la referencia al authenticator
+        authenticator = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)  #esto ya es la referencia al authenticator
 
         self.service_id = str(uuid.uuid4())
 
@@ -459,6 +541,33 @@ class AuthenticatorApp(Ice.Application):
         subscriptor_publicador_announcements = IceFlix.AnnouncementPrx.uncheckedCast(subscriptor_publicador_announcements)
 
 
+        #ALGORITMO DE ARRANQUE
+
+        time.sleep(tiempo_arranque) #esperamos a recibir un anunciamiento de una instancia Main o Authenticator
+        with candadoregistromains:
+            if (len(registro_mains) == 0): # si no hay ningún Main registrado se corta el programa
+                raise RuntimeError("[AUTHENTICATOR_APP] No se ha recibido el anunciamiento de ninguna instancia Main , abortando arranque ...")
+
+        if (len(registro_authenticators) == 0): # si no hay ningún Authenticator registrado se corta el programa
+            
+            with candadoregistroauthenticators:
+                for entrada in registro_authenticators:
+                    proxy_authenticator_BD = registro_authenticators[entrada]
+                    break
+            authenticator_BD = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)
+            authenticator_data = authenticator_BD.bulkUpdate()
+            print("############################################################################################")
+            print("adminToken: " + authenticator_data.adminToken)
+            print("currentUsers: " + str(authenticator_data.currentUsers))
+            print("activeTokens: " + str(authenticator_data.activeTokens))
+            print("############################################################################################")
+            
+
+
+
+
+
+
         ############################# UserUpdates #########################
 
         topic_name = "UserUpdates"
@@ -467,7 +576,7 @@ class AuthenticatorApp(Ice.Application):
         except IceStorm.TopicExists:
             topic = topic_manager.retrieve(topic_name)
 
-        self.sirvienteuserupdate = AuthenticatorUserUpdates(self.proxy, tokenadministracion)
+        self.sirvienteuserupdate = AuthenticatorUserUpdates(authenticator, tokenadministracion)
         proxyuserupdate = adapter.addWithUUID(self.sirvienteuserupdate)
         
         qos = {}
@@ -482,11 +591,14 @@ class AuthenticatorApp(Ice.Application):
 
         #HILOS NECESARIOS PARA EL CONTROL DE LA VIGENCIA DE LOS DATOS
 
-        self.hiloAnnouncement = threading.Thread(target = self.sirvienteanunciador.anunciarperiodicamente,args=(subscriptor_publicador_announcements,self.proxy,tiempovalidezannounce,))
+        self.hiloAnnouncement = threading.Thread(target = self.sirvienteanunciador.anunciarperiodicamente,args=(subscriptor_publicador_announcements,authenticator,tiempovalidezannounce,))
         self.hiloAnnouncement.start()
 
-        self.hiloenvejeceids = threading.Thread(target = self.sirvienteanunciador.envejecediccionario, args=(registro_authenticators, candadoregistroauthenticators, tiempovalidezids,))
-        self.hiloenvejeceids.start()
+        self.hiloenvejeceidsauthenticator = threading.Thread(target = self.sirvienteanunciador.envejecediccionario, args=(registro_authenticators, candadoregistroauthenticators, tiempovalidezids,))
+        self.hiloenvejeceidsauthenticator.start()
+
+        self.hiloenvejeceidsmain = threading.Thread(target = self.sirvienteanunciador.envejecediccionario, args=(registro_mains, candadoregistromains, tiempovalidezids,))
+        self.hiloenvejeceidsmain.start()
 
         #hilo para eliminar tokens que han estado activos más del tiempo establecido en el enunciado
         self.hiloenvejecetokens = threading.Thread(target = self.servantauthenticator.envejecelista)
@@ -500,6 +612,8 @@ class AuthenticatorApp(Ice.Application):
         topic.unsubscribe(proxyuserupdate)
 
         return 0
+
+#LUEGO QUITAR TODO ESTO #############################################################################################
 import sys
 s = AuthenticatorApp()
 sys.exit(s.main(sys.argv))
