@@ -712,7 +712,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
                 raise RuntimeError("[AUTHENTICATOR_APP] No se ha recibido el anunciamiento "
                 + "de ninguna instancia Main , abortando arranque ...")
 
-        if len(registro_authenticators) != 0:
+        if len(registro_authenticators) == 0:
             # si no hay ningún Authenticator registrado se corta el programa
             proxy_authenticator_bd = ""
             with candado_registro_authenticators:
@@ -778,8 +778,4 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         ############################################################################
 
         return 0
-
-#LUEGO QUITAR TODO ESTO
-#import sys
-#s = AuthenticatorApp()
-#sys.exit(s.main(sys.argv))
+        
