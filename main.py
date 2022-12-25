@@ -96,6 +96,11 @@ class MainApp(Ice.Application):
         self.adapter = None
         self.hiloAnnouncement = None
 
+    def getsha256cadena(self,cadena):
+      hashsha  = hashlib.sha256()
+      hashsha.update(cadena.encode())
+      return hashsha.hexdigest() 
+
     def run(self, args):
         """Run the application, adding the needed objects to the adapter."""
         logging.info("Running Main application")
@@ -125,6 +130,32 @@ class MainApp(Ice.Application):
 
         self.hiloAnnouncement = threading.Thread(target = sirvienteAnnouncements.anunciar,args=(announcements,self.proxy))
         self.hiloAnnouncement.start()
+
+        authenticator = IceFlix.AuthenticatorPrx.checkedCast(self.communicator().stringToProxy(sys.argv[1]))
+        
+        try:
+            print("Añadiendo usuario nuevo")
+            authenticator.addUser("hola",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+            #print("Añadiendo usuario registrado")
+            #authenticator.addUser("EnriqueAP6",self.getsha256cadena("dsvfd "),"1234")  #usuario ya registrado
+            sleep(3)
+            print("Añadiendo usuario nuevo")
+            authenticator.addUser("Enri",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+            print("Eliminado usuario existente")
+            authenticator.removeUser("Enri","1234") #borrado usuario existente
+            print("Eliminando usuario inexistente")
+            authenticator.removeUser("djfvdb ","1234") #borrado usuario inexistente
+            print("Pidiendo token nuevo")
+            tokenUsuario = authenticator.refreshAuthorization("hola",self.getsha256cadena("adios")) #usuario existente
+            #print("¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN 1234EW3 ? --> " + str(authenticator.isAuthorized("1234EW3"))) #usuario inexistente
+            print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario))) #usuario existente
+            print("¿ES ADMIN EL USUARIO CON EL TOKEN 1234 ? --> " + str(authenticator.isAdmin("1234"))) #administrador
+            print(f"¿ES ADMIN EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAdmin(tokenUsuario))) #no administrador
+            #print("¿QUIÉN ES EL USUARIO CON EL TOKEN 1234EW3? --> " + authenticator.whois("1234EW3")) #usuario inexistente
+            print(f"¿QUIÉN ES EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + authenticator.whois(tokenUsuario)) #usuario existente
+        except IceFlix.Unauthorized:
+            print("\n\nUNAUTHORIZED")
+
         
         self.adapter.activate()
         self.shutdownOnInterrupt()
