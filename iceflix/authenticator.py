@@ -67,8 +67,6 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
     def anunciarperiodicamente(self,publicador_subscriptor,proxy_authenticator,tiempo_announce):
        
         while True:
-            print(registro_authenticators) #quitar luego
-            print(registro_mains) #quitar luego
             print("[AUTHENTICATOR_ANNOUNCEMENTS] Va a anunciarse el authenticator\n") #quitar luego
             publicador_subscriptor.announce(proxy_authenticator,self.id_authenticator)
             time.sleep(tiempo_announce)
@@ -172,19 +170,27 @@ class Authenticator(IceFlix.Authenticator):
         self.service_id = None
         self.publicador_userupdates = None
 
-        self.basedatosvalida = False
-
     def setpublicador(self, publicador_userupdates):
         self.publicador_userupdates = publicador_userupdates
 
     def setserviceid(self, service_id):
         self.service_id = service_id
 
-    def setbasedatosvalida(self, basedatosvalida):
-        self.basedatosvalida = basedatosvalida
-
     def settokenadministracion(self, tokenadministracion):
         self.tokenadministracion = tokenadministracion
+
+    def setdiccionariotokens(self, diccionariotokens):
+        with self.candadolistatokens:
+            self.diccionariotokens = {}
+            for entrada in diccionariotokens:
+                self.diccionariotokens[entrada] = [diccionariotokens[entrada],0]
+
+    def setnuevosusuarios(self, diccionariousers):
+
+        with self.candadoarchivotexto:
+            with open(self.nombrearchivo,"w", encoding="utf-8") as archivoleer:
+                for entrada in diccionariousers:
+                    self.insertacredencialesarchivo(entrada,diccionariousers[entrada])
 
     def envejecelista(self):
         """Controla la validez de los token con el paso del tiempo"""
@@ -208,7 +214,7 @@ class Authenticator(IceFlix.Authenticator):
     def imponetokenusuario(self, user, token):
        
         with self.candadolistatokens:
-            print(f"[AUTHENTICATOR] Añadida la entrada: {[token,0]}\n")
+            print(f"[AUTHENTICATOR] Añadida/Actualizada la entrada: {[token,0]}\n")
             self.diccionariotokens[user] = [token,0]
 
     def eliminaentradatoken(self, token):
@@ -289,17 +295,13 @@ class Authenticator(IceFlix.Authenticator):
     def insertacredencialesarchivo(self, user, password):
         '''Añade a la base de datos el usuario y contraseña pasados como parámetros'''
 
-        with self.candadoarchivotexto:
-            #controlo el archivo persistente con sección crítica
-
-            with open(self.nombrearchivo,"a", encoding="utf-8") as archivoescribir:
-                archivoescribir.write("\n")
-                archivoescribir.write("[USUARIO] "+ user+"\n")
-                archivoescribir.write("[CONTRASEÑA] " + password+"\n")
-                archivoescribir.close()
-            print(f"[AUTHENTICATOR] Añadidas las credenciales de: {user}\n")
-
-        self.publicador_userupdates.newUser(user, password, self.service_id)
+       
+        with open(self.nombrearchivo,"a", encoding="utf-8") as archivoescribir:
+            archivoescribir.write("\n")
+            archivoescribir.write("[USUARIO] "+ user+"\n")
+            archivoescribir.write("[CONTRASEÑA] " + password+"\n")
+            archivoescribir.close()
+        print(f"[AUTHENTICATOR] Añadidas las credenciales de: {user}\n")
 
     def eliminalineasarchivo(self, numlinea):
         """Reescribe el contenido del archivo de texto usado como"""
@@ -320,7 +322,6 @@ class Authenticator(IceFlix.Authenticator):
                         archivoleer.write(lineasleidas[i]) #ahora no añado el salto de línea porque
                         #dejaría una línea en blanco entre datos
                 archivoleer.close()
-
 
     def refreshAuthorization(self, user, passwordHash, current: Ice.Current=None):  # pylint:disable=invalid-name, unused-argument, no-member
         "Crea un nuevo token de autorización de usuario si las credenciales son válidas."
@@ -378,7 +379,9 @@ class Authenticator(IceFlix.Authenticator):
             if self.buscauserarchivo(user) == -1 :
             #controla el caso de querer registrar un usuario que ya existe
             #(basta con que el nombre del usuario esté en la BD)
-                self.insertacredencialesarchivo(user,passwordHash)
+                with self.candadoarchivotexto:
+                    self.insertacredencialesarchivo(user,passwordHash)
+                    self.publicador_userupdates.newUser(user, passwordHash, self.service_id)
                 
                 #hay que introducir al user tanto en el archivo como en la lista temporal
                 #le asigno un token válido y se pone su timpo de vigencia a 0
@@ -424,7 +427,6 @@ class Authenticator(IceFlix.Authenticator):
         with self.candadolistatokens:
 
             for entrada in self.diccionariotokens:
-                print(entrada + " : " +  self.diccionariotokens[entrada][0])
                 diccionario_envio[entrada] = self.diccionariotokens[entrada][0]
 
         return diccionario_envio
@@ -453,17 +455,14 @@ class Authenticator(IceFlix.Authenticator):
 
         return diccionario_envio
                 
-
-
     def bulkUpdate(self, current: Ice.Current=None):
 
         authenticator_data = AuthenticatorData()
         authenticator_data.set_admin_token(self.tokenadministracion)
-        authenticator_data.set_active_tokens(self.crea_diccionario_active_tokens())
         authenticator_data.set_current_users(self.crea_diccionario_current_users())
+        authenticator_data.set_active_tokens(self.crea_diccionario_active_tokens())
 
         return authenticator_data
-
 
 
 class AuthenticatorApp(Ice.Application):
@@ -554,15 +553,19 @@ class AuthenticatorApp(Ice.Application):
                 for entrada in registro_authenticators:
                     proxy_authenticator_BD = registro_authenticators[entrada]
                     break
-            authenticator_BD = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)
+            authenticator_BD = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy) #poner el proxy del primer authenticator que tengamos
             authenticator_data = authenticator_BD.bulkUpdate()
+            
+            
             print("############################################################################################")
             print("adminToken: " + authenticator_data.adminToken)
             print("currentUsers: " + str(authenticator_data.currentUsers))
             print("activeTokens: " + str(authenticator_data.activeTokens))
             print("############################################################################################")
             
-
+            self.servantauthenticator.settokenadministracion(authenticator_data.adminToken)
+            self.servantauthenticator.setnuevosusuarios(authenticator_data.currentUsers)
+            self.servantauthenticator.setdiccionariotokens(authenticator_data.activeTokens)
 
 
 
