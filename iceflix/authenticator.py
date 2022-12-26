@@ -701,6 +701,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         qos = {}
 
         subscriptor_publicador_userupdates = topic.subscribeAndGetPublisher(qos, proxy_userupdate)
+        subscriptor_publicador_userupdates = topic.getPublisher()
         subscriptor_publicador_userupdates = IceFlix.UserUpdatePrx.uncheckedCast(
             (subscriptor_publicador_userupdates))
 
