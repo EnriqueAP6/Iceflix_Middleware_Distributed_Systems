@@ -22,10 +22,41 @@ class MainAnnouncement(IceFlix.Announcement):
         while True:
             print("Va a publicar")
             announcements.announce(proxy_main,"hola bro")
-            sleep(10)
+            sleep(8)
 
     def announce(self, service, serviceId, current: Ice.Current=None):
-        print()
+        print("Recibido desde un Authenticator el serviceId: " + serviceId)
+        if service.ice_isA('::IceFlix::Authenticator'):
+            authenticator = IceFlix.AuthenticatorPrx.uncheckedCast(service)
+            #print("\n\n\n\n" + str(type(authenticator)) + "\n\n\n\n")
+            try:
+                sleep(3)
+                print("Añadiendo usuario nuevo")
+                authenticator.addUser("holdda",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+                #print("Añadiendo usuario registrado")
+                #authenticator.addUser("EnriqueAP6",self.getsha256cadena("dsvfd "),"1234")  #usuario ya registrado
+                #sleep(3)
+                #print("Añadiendo usuario nuevo")
+                #authenticator.addUser("Enri",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+                print("Eliminado usuario existente")
+                authenticator.removeUser("Enri","1234") #borrado usuario existente
+                print("Eliminando usuario inexistente")
+                authenticator.removeUser("djfvdb ","1234") #borrado usuario inexistente
+                print("Pidiendo token nuevo")
+                tokenUsuario = authenticator.refreshAuthorization("hola",self.getsha256cadena("adios")) #usuario existente
+                #print("¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN 1234EW3 ? --> " + str(authenticator.isAuthorized("1234EW3"))) #usuario inexistente
+                print(f"¿ESTÁ AUTORIZADO EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAuthorized(tokenUsuario))) #usuario existente
+                print("¿ES ADMIN EL USUARIO CON EL TOKEN 1234 ? --> " + str(authenticator.isAdmin("1234"))) #administrador
+                print(f"¿ES ADMIN EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + str(authenticator.isAdmin(tokenUsuario))) #no administrador
+                #print("¿QUIÉN ES EL USUARIO CON EL TOKEN 1234EW3? --> " + authenticator.whois("1234EW3")) #usuario inexistente
+                print(f"¿QUIÉN ES EL USUARIO CON EL TOKEN {tokenUsuario}? --> " + authenticator.whois(tokenUsuario)) #usuario existente
+            except IceFlix.Unauthorized:
+                print("\n\nUNAUTHORIZED")
+
+    def getsha256cadena(self,cadena):
+      hashsha  = hashlib.sha256()
+      hashsha.update(cadena.encode())
+      return hashsha.hexdigest()
 
 
 class Main(IceFlix.Main):
@@ -60,8 +91,8 @@ class Main(IceFlix.Main):
             #print("Añadiendo usuario registrado")
             #authenticator.addUser("EnriqueAP6",self.getsha256cadena("dsvfd "),"1234")  #usuario ya registrado
             sleep(3)
-            print("Añadiendo usuario nuevo")
-            authenticator.addUser("Enri",self.getsha256cadena("adios"),"1234")  #usuario nuevo
+            #print("Añadiendo usuario nuevo")
+            #authenticator.addUser("Enri",self.getsha256cadena("adios"),"1234")  #usuario nuevo
             print("Eliminado usuario existente")
             authenticator.removeUser("Enri","1234") #borrado usuario existente
             print("Eliminando usuario inexistente")
@@ -151,12 +182,16 @@ class MainApp(Ice.Application):
         except IceStorm.TopicExists:
             topic = topic_manager.retrieve(topic_name)
         
-        publisher = topic.getPublisher()
-        announcements = IceFlix.AnnouncementPrx.uncheckedCast(publisher)
+        self.sirviente_announcements = MainAnnouncement()
+        proxy_announcements = self.adapter.addWithUUID(self.sirviente_announcements)
 
-        sirvienteAnnouncements = MainAnnouncement()
+        qos = {}
 
-        self.hiloAnnouncement = threading.Thread(target = sirvienteAnnouncements.anunciar,args=(announcements,self.proxy))
+        subscriptor_publicador_announcements = topic.subscribeAndGetPublisher(qos, proxy_announcements)
+        subscriptor_publicador_announcements = topic.getPublisher()
+        announcements = IceFlix.AnnouncementPrx.uncheckedCast(subscriptor_publicador_announcements)
+
+        self.hiloAnnouncement = threading.Thread(target = self.sirviente_announcements.anunciar,args=(announcements,self.proxy))
         self.hiloAnnouncement.start()
         
         self.shutdownOnInterrupt()
