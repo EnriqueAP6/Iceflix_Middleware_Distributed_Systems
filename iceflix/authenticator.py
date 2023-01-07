@@ -26,6 +26,12 @@ registro_mains = {}
 #para cada estructura de datos anteior
 candado_registro_authenticators = threading.Lock()
 candado_registro_mains = threading.Lock()
+#requeriré de dos variables globales extra para arrancar
+#el sistema antes de los 12 segundos de espera iniciales
+#siempre que ya haya recibido el announce un servicio Main
+#y otro de un Authenticator
+RECIBIDO_YA_MAIN = False
+RECIBIDO_YA_AUTHENTICATOR = False
 
 
 
@@ -42,6 +48,10 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
     def announce(self, service, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
         '''Guardará los proxy y service_id de instancias Main y Authenticator'''
 
+        global RECIBIDO_YA_AUTHENTICATOR,RECIBIDO_YA_MAIN # pylint:disable=W0603
+
+        print("\nrecibido un announce de main\n\n")
+
         if service.ice_isA('::IceFlix::Main'):
             #si el proxy es una instancia Main...
 
@@ -53,6 +63,9 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
                 else:
                     print("[AUTHENTICATOR_ANNOUNCEMENTS] Registro del serviceId de un Main: "
                     + serviceId + "\n")
+
+                    if not RECIBIDO_YA_MAIN:
+                        RECIBIDO_YA_MAIN = True
 
                 registro_mains[serviceId] = [service,0]
 
@@ -68,6 +81,10 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
                 else:
                     print("[AUTHENTICATOR_ANNOUNCEMENTS] Registro del serviceId de un" +
                     " Authenticator:  " + serviceId + "\n")
+
+                    if not RECIBIDO_YA_AUTHENTICATOR:
+                        RECIBIDO_YA_AUTHENTICATOR = True
+
                 registro_authenticators[serviceId] = [service,0]
 
 
@@ -121,8 +138,9 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
 class AuthenticatorUserUpdates(IceFlix.UserUpdate):
     """Sirviente para la interfaz IceFlix.UserUpdate"""
 
-    def __init__(self, referencia_authenticator):
+    def __init__(self,sirviente_authenticator, referencia_authenticator):
 
+        self.sirviente_authenticator = sirviente_authenticator
         self.referencia_authenticator = referencia_authenticator
         #dejo el token de administración nulo hasta saber si hay que pedirlo
         #a otro authenticator o usar el de mi archivo config
@@ -143,7 +161,9 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
         if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
             serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator asigne el token al usuario determinado
-            self.referencia_authenticator.impone_token_usuario(user, token)
+            print(self.referencia_authenticator.isAdmin("1234"))
+            self.sirviente_authenticator.impone_token_usuario(user, token)
+
 
 
     def revokeToken(self, token, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
@@ -154,7 +174,7 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
         if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
             serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator borre el token al usuario determinado
-            self.referencia_authenticator.elimina_entrada_token(token)
+            self.sirviente_authenticator.elimina_entrada_token(token)
 
 
     def newUser(self, user, passwordHash, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
@@ -306,8 +326,8 @@ class Authenticator(IceFlix.Authenticator): # pylint:disable=R0902,R0904
 
                 for entrada in diccionario_aux:
                     if (self.diccionario_tokens[entrada][1]) == self.tiempo_validez_tokens:
-                        self.publicador_userupdates.revokeToken( # pylint:disable=no-value-for-parameter
-                            (self.diccionario_tokens[entrada][0],self.service_id))
+                        (self.publicador_userupdates.revokeToken( # pylint:disable=no-value-for-parameter
+                            self.diccionario_tokens[entrada][0],self.service_id))
                         print(("[AUTHENTICATOR] Eliminada la entrada: "
                         + f"{self.diccionario_tokens.pop(entrada)}\n"))
                     else:
@@ -695,12 +715,14 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         except IceStorm.TopicExists: # pylint:disable=E1101
             topic = topic_manager.retrieve(topic_name)
 
-        self.sirviente_userupdate = AuthenticatorUserUpdates(authenticator)
+        self.sirviente_userupdate = AuthenticatorUserUpdates(
+            self.servant_authenticator,authenticator)
         proxy_userupdate = adapter.addWithUUID(self.sirviente_userupdate)
 
         qos = {}
 
         subscriptor_publicador_userupdates = topic.subscribeAndGetPublisher(qos, proxy_userupdate)
+        subscriptor_publicador_userupdates = topic.getPublisher()
         subscriptor_publicador_userupdates = IceFlix.UserUpdatePrx.uncheckedCast(
             (subscriptor_publicador_userupdates))
 
@@ -712,15 +734,22 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         #ALGORITMO DE ARRANQUE
         ############################################################################
         print("[AUTHENTICATOR_APP] Arrancando el sistema ...")
-        #esperamos a recibir un anunciamiento de una instancia Main o Authenticator
-        time.sleep(tiempo_arranque)
+        #esperamos a recibir anunciamientos de una instancia Main y/o Authenticator
+        contador_segundos = 0
+        while (not (RECIBIDO_YA_MAIN and RECIBIDO_YA_AUTHENTICATOR)
+        and contador_segundos < tiempo_arranque):
+            time.sleep(1) #realizo la comprobación cada segundo
+            #incremento el contador para asegurar que el
+            #bucle dura lo necesario
+            contador_segundos += 1
+
         with candado_registro_mains:
-            if len(registro_mains) == 0: # si no hay ningún Main registrado se corta el programa
+            if not RECIBIDO_YA_MAIN: # si no hay ningún Main registrado se corta el programa
                 raise RuntimeError("[AUTHENTICATOR_APP] No se ha recibido el anunciamiento "
                 + "de ninguna instancia Main , abortando arranque ...")
 
-        if len(registro_authenticators) != 0:
-            # si no hay ningún Authenticator registrado se corta el programa
+        if RECIBIDO_YA_AUTHENTICATOR:
+            # si hay ningún Authenticator registrado se piden sus datos
             proxy_authenticator_bd = ""
             with candado_registro_authenticators:
                 for entrada in registro_authenticators: #pylint:disable=C0206
