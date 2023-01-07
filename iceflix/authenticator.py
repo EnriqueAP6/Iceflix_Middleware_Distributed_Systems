@@ -50,8 +50,6 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
 
         global RECIBIDO_YA_AUTHENTICATOR,RECIBIDO_YA_MAIN # pylint:disable=W0603
 
-        print("\nrecibido un announce de main\n\n")
-
         if service.ice_isA('::IceFlix::Main'):
             #si el proxy es una instancia Main...
 
