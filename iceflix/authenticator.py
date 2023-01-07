@@ -90,7 +90,8 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
         '''sirviente instancia de Authenticator''' # pylint:disable=W0105
 
         while True:
-            print("[AUTHENTICATOR_ANNOUNCEMENTS] Va a anunciarse el authenticator\n") #quitar luego
+
+            print("[AUTHENTICATOR_ANNOUNCEMENTS] Va a anunciarse el authenticator\n")
             publicador_subscriptor.announce(proxy_authenticator,self.id_authenticator)
             time.sleep(tiempo_announce)
 
@@ -127,6 +128,7 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
         #a otro authenticator o usar el de mi archivo config
         self.token_administracion = None
 
+
     def set_token_administracion(self, token_administracion):
         '''Actualiza el token de administración en el Authenticator'''
 
@@ -138,8 +140,8 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
 
         print(f"[AUTHENTICATOR_USERUPDATES] Recibido newToken({user},{token},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
-        if self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
-            (serviceId,registro_authenticators,candado_registro_authenticators)):
+        if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
+            serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator asigne el token al usuario determinado
             self.referencia_authenticator.impone_token_usuario(user, token)
 
@@ -149,8 +151,8 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
 
         print(f"[AUTHENTICATOR_USERUPDATES] Recibido revokeToken({token},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
-        if self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
-            (serviceId,registro_authenticators,candado_registro_authenticators)):
+        if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
+            serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator borre el token al usuario determinado
             self.referencia_authenticator.elimina_entrada_token(token)
 
@@ -160,8 +162,8 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
 
         print(f"[AUTHENTICATOR_USERUPDATES] Recibido newUser({user},{passwordHash},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
-        if self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
-            (serviceId,registro_authenticators,candado_registro_authenticators)):
+        if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
+            serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator asigne el hash al usuario determinado
             self.referencia_authenticator.addUser(user, passwordHash, self.token_administracion)
 
@@ -171,8 +173,8 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
 
         print(f"[AUTHENTICATOR_USERUPDATES] Recibido removeUser({user},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
-        if self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
-            (serviceId,registro_authenticators,candado_registro_authenticators)):
+        if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
+            serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator borre el usuario determinado
             self.referencia_authenticator.removeUser(user, self.token_administracion)
 
@@ -205,13 +207,16 @@ class AuthenticatorData(IceFlix.AuthenticatorData):
         #diccionario --> users: tokens
         self.activeTokens = None # pylint:disable=invalid-name
 
+
     def set_admin_token(self, admin_token):
         '''Actualiza el token de administrador'''
         self.adminToken = admin_token
 
+
     def set_current_users(self, current_users):
         '''Actualiza el diccionario de usuarios registrados'''
         self.currentUsers = current_users
+
 
     def set_active_tokens(self, active_tokens):
         '''Actualiza el diccionario de tokens activos'''
@@ -650,6 +655,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         #esto ya es la referencia al authenticator
 
         self.service_id = str(uuid.uuid4())
+        print(f'[AUTHENTICATOR_APP] The service_id of the authenticator is "{self.service_id}"\n\n')
         ############################################################################
 
         ############################################################################
@@ -676,6 +682,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         qos = {}
 
         subscriptor_publicador_announcements = topic.subscribeAndGetPublisher(qos, proxy_anunciador)
+        subscriptor_publicador_announcements = topic.getPublisher()
         subscriptor_publicador_announcements = IceFlix.AnnouncementPrx.uncheckedCast(
             (subscriptor_publicador_announcements))
 
@@ -717,7 +724,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
             proxy_authenticator_bd = ""
             with candado_registro_authenticators:
                 for entrada in registro_authenticators: #pylint:disable=C0206
-                    proxy_authenticator_bd = registro_authenticators[entrada]
+                    proxy_authenticator_bd = registro_authenticators[entrada][0]
                     break
             authenticator_bd = IceFlix.AuthenticatorPrx.uncheckedCast(proxy_authenticator_bd)
             authenticator_data = authenticator_bd.bulkUpdate()
@@ -747,7 +754,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         #hilo para anunciar el authenticator a otros servicios cada cierto tiempo
         self.hilo_announcement = threading.Thread(
             target = self.sirviente_anunciador.anunciar_periodicamente, args=(
-                subscriptor_publicador_announcements,authenticator,tiempo_validez_announce,))
+                subscriptor_publicador_announcements,self.proxy,tiempo_validez_announce,))
         self.hilo_announcement.start()
 
         #hilo para eliminar referencias a otros Authenticator pasado cierto tiempo
@@ -778,8 +785,4 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         ############################################################################
 
         return 0
-
-#LUEGO QUITAR TODO ESTO
-#import sys
-#s = AuthenticatorApp()
-#sys.exit(s.main(sys.argv))
+        
