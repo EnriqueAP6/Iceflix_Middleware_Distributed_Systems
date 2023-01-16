@@ -1,5 +1,6 @@
 """Módulo con el código destinado al servicio de autenticación."""
 
+from hashlib import sha256
 import logging
 import time
 import threading
@@ -549,7 +550,7 @@ class Authenticator(IceFlix.Authenticator): # pylint:disable=R0902,R0904
         "Devuelve un valor booleano para comprobar si el token proporcionado"
         "corresponde o no con el administrativo" # pylint:disable=W0105
 
-        if adminToken == self.token_administracion: # pylint:disable=R1705, R1703
+        if adminToken == sha256(self.token_administracion.encode()).hexdigest(): # pylint:disable=R1705, R1703
             return True
         else:
             return False
