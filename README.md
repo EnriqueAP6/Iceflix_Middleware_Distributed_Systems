@@ -36,6 +36,8 @@ Una vez ocurrido lo anterior, comenzarán los anunciamientos propios cada 8 segu
 
 *Puede terminar antes incluso si ya se ha detectado tanto un servicio Main como uno Authenticator
 
+**IMPORTANTE: Debido a las consultas realizadas a profesores de la asignatura, el código supone que el token de administración recibido desde clientes estará codificado (no viajará en claro). En mi caso se ha utilizado la codificación sha256.**
+
 # **BASE DE DATOS USADA**
 
   A la hora de registrar todos los nombres de usuario y contreña que se desee por el servicio main, empleo un archivo de texto llamado **resources/bbddCredenciales.txt** (situado como puede verse en la carpeta "resources"). En él he dejado colocados ciertas credenciales completas para que quien pruebe mi código pueda realizar todo tipo de comprobaciones. Será creado en tiempo de ejecución en caso de haberse borrado.
