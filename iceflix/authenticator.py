@@ -1,5 +1,6 @@
 """Módulo con el código destinado al servicio de autenticación."""
 
+from hashlib import sha256
 import logging
 import time
 import threading
@@ -50,8 +51,6 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
 
         global RECIBIDO_YA_AUTHENTICATOR,RECIBIDO_YA_MAIN # pylint:disable=W0603
 
-        print("\nrecibido un announce de main\n\n")
-
         if service.ice_isA('::IceFlix::Main'):
             #si el proxy es una instancia Main...
 
@@ -86,6 +85,10 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
                         RECIBIDO_YA_AUTHENTICATOR = True
 
                 registro_authenticators[serviceId] = [service,0]
+
+        else:
+            print("[AUTHENTICATOR_ANNOUNCEMENTS] Rechazado del serviceId " + serviceId +
+            " por no ser de un servicio Authenticator o un Main\n")
 
 
     def comprueba_service_ids(self, service_id, diccionario):
@@ -156,47 +159,61 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
     def newToken(self, user, token, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
         '''Recibe notificaciones de creación de tokens y lo comunica al Authenticator'''
 
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newToken({user},{token},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
         if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
             serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator asigne el token al usuario determinado
-            print(self.referencia_authenticator.isAdmin("1234"))
+            print("[AUTHENTICATOR_USERUPDATES] Recibido y aceptado delta "
+            + f"newToken({user},{token},{serviceId})\n")
             self.sirviente_authenticator.impone_token_usuario(user, token)
-
+        else:
+            print("[AUTHENTICATOR_USERUPDATES] Recibido pero rechazado delta "
+            + f"newToken({user},{token},{serviceId})\n")
 
 
     def revokeToken(self, token, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
         '''Recibe notificaciones de eliminación de tokens y lo comunica al Authenticator'''
 
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido revokeToken({token},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
         if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
             serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator borre el token al usuario determinado
+            print("[AUTHENTICATOR_USERUPDATES] Recibido y aceptado delta "
+            + f"revokeToken({token},{serviceId})\n")
             self.sirviente_authenticator.elimina_entrada_token(token)
+        else:
+            print("[AUTHENTICATOR_USERUPDATES] Recibido pero rechazado delta "
+            + f"revokeToken({token},{serviceId})\n")
 
 
     def newUser(self, user, passwordHash, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
         '''Recibe notificaciones de creación de usuarios y lo comunica al Authenticator'''
 
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido newUser({user},{passwordHash},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
         if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
             serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator asigne el hash al usuario determinado
+            print("[AUTHENTICATOR_USERUPDATES] Recibido y aceptado delta "
+            + f"newUser({user},{passwordHash},{serviceId})\n")
             self.referencia_authenticator.addUser(user, passwordHash, self.token_administracion)
+        else:
+            print("[AUTHENTICATOR_USERUPDATES] Recibido pero rechazado delta "
+            + f"newUser({user},{passwordHash},{serviceId})\n")
 
 
     def removeUser(self, user, serviceId, current: Ice.Current=None): # pylint:disable=invalid-name, unused-argument, no-member
         '''Recibe notificaciones de eliminación de usuarios y lo comunica al Authenticator'''
 
-        print(f"[AUTHENTICATOR_USERUPDATES] Recibido removeUser({user},{serviceId})\n")
         #si el service_id es de un Authenticator conocido...
         if (self.comprueba_service_ids_authenticators( #pylint:disable=no-value-for-parameter
             serviceId,registro_authenticators,candado_registro_authenticators)):
             #hace que el Authenticator borre el usuario determinado
+            print("[AUTHENTICATOR_USERUPDATES] Recibido y aceptado delta "
+            + f"removeUser({user},{serviceId})\n")
             self.referencia_authenticator.removeUser(user, self.token_administracion)
+        else:
+            print("[AUTHENTICATOR_USERUPDATES] Recibido pero rechazado delta "
+            + f"removeUser({user},{serviceId})\n")
 
 
     def comprueba_service_ids_authenticators(self, service_id, diccionario, candado):
@@ -551,7 +568,7 @@ class Authenticator(IceFlix.Authenticator): # pylint:disable=R0902,R0904
         "Devuelve un valor booleano para comprobar si el token proporcionado"
         "corresponde o no con el administrativo" # pylint:disable=W0105
 
-        if adminToken == self.token_administracion: # pylint:disable=R1705, R1703
+        if adminToken == sha256(self.token_administracion.encode()).hexdigest(): # pylint:disable=R1705, R1703
             return True
         else:
             return False
