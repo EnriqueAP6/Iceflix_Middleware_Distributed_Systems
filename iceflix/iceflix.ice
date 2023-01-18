@@ -123,4 +123,7 @@
     interface Announcement {
         void announce(Object* service, string serviceId);
     };
+    interface AnnouncementMAINPRUEBA {
+        void announce(Object* service, string serviceId);
+    };
 };

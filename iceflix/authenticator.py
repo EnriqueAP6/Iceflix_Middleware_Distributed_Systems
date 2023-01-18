@@ -86,8 +86,11 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
 
                 registro_authenticators[serviceId] = [service,0]
 
+        elif serviceId == self.id_authenticator:
+            print("[AUTHENTICATOR_ANNOUNCEMENTS] Rechazado mi propio serviceId " + serviceId +
+            "\n")
         else:
-            print("[AUTHENTICATOR_ANNOUNCEMENTS] Rechazado del serviceId " + serviceId +
+            print("[AUTHENTICATOR_ANNOUNCEMENTS] Rechazado el serviceId " + serviceId +
             " por no ser de un servicio Authenticator o un Main\n")
 
 
@@ -622,6 +625,8 @@ class Authenticator(IceFlix.Authenticator): # pylint:disable=R0902,R0904
                     if user in self.diccionario_tokens:
 
                         self.publicador_userupdates.removeUser(user, self.service_id)
+                        (self.publicador_userupdates.revokeToken(
+                            self.diccionario_tokens[user][0],self.service_id))
                         print("[AUTHENTICATOR] Eliminada la entrada: "
                         + f"{self.diccionario_tokens.pop(user)}\n")
 

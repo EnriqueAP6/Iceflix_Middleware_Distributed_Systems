@@ -10,7 +10,7 @@ import Ice
 import threading
 import IceStorm
 import random
-from iceflix.announcementMAINPRUEBA import AnnouncementServantMAINPRUEBA
+#from iceflix.announcementMAINPRUEBA import AnnouncementServantMAINPRUEBA
 from datetime import datetime
 Ice.loadSlice("iceflix/iceflix.ice")
 import IceFlix  
@@ -66,6 +66,19 @@ class MainI(IceFlix.Main):
         # TODO: implement
         return
 
+
+class AnnouncementServantMAINPRUEBA(IceFlix.AnnouncementMAINPRUEBA):
+    def __init__(self):
+        pass
+    def announce(self, service, serviceId, current=None):
+        if service.ice_isA('::IceFlix::Main'):
+            print("RECIBIDO UN MAIN " + str(serviceId))
+        elif service.ice_isA('::IceFlix::Authenticator'):
+            print("RECIBIDO UN AUTHENTICATOR "+ str(serviceId))
+        else:
+            print("SERVICIO NO INTERESANTE")
+
+
 class MainS(Ice.Application):
     def __init__(self):
         self.servant = None
@@ -78,7 +91,7 @@ class MainS(Ice.Application):
         self.service_id = "MAIN PRUEBA 123XD"
         self.servant = MainI(
             self.communicator().getProperties().getProperty('AdminToken'))
-        adapter = self.broker.createObjectAdapter("MainAdapter")
+        adapter = self.broker.createObjectAdapterWithEndpoints("MainAdapter","tcp")
         proxy = adapter.add(self.servant, self.broker.stringToIdentity(self.service_id))
         print(proxy, flush=True)
         
@@ -103,20 +116,22 @@ class MainS(Ice.Application):
     
 
     def get_topic_Announcements(self):
-        topic_mgr = self.get_topic_manager()
-        if not topic_mgr:
+        topic_mgr = "IceStorm/TopicManager -t:tcp -h localhost -p 10000"
+        topic_manager = IceStorm.TopicManagerPrx.checkedCast( # pylint:disable=E1101
+        self.communicator().stringToProxy(topic_mgr),)
+        if not topic_manager:
             print("Invalid proxy")
             return 2
         servant = AnnouncementServantMAINPRUEBA()
-        adapter = self.broker.createObjectAdapter("AnnouncementsAdapter")
+        adapter = self.broker.createObjectAdapterWithEndpoints("AnnouncementsAdapter","tcp")
         subscriber = adapter.addWithUUID(servant)
 
         topic_name = "Announcements"
         qos = {}
         try:
-            topic = topic_mgr.retrieve(topic_name)
+            topic = topic_manager.retrieve(topic_name)
         except IceStorm.NoSuchTopic:
-            topic = topic_mgr.create(topic_name)
+            topic = topic_manager.create(topic_name)
         self.Announcement = topic
         servant.Announcements = topic
         return subscriber, adapter, servant
