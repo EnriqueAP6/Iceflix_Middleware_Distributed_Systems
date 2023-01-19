@@ -18,6 +18,10 @@ It contains the following files and directories:
   It needs to be modified in order to adeccuate to the package name and
   console handler functions.
 
+# **URL DEL REPOSITORIO**
+
+https://github.com/EnriqueAP6/iceflixParcial1
+
 # **UTILIZACIÓN (entrega parcial)**
 
   Para llevar a cabo la ejecución del authenticator, lo primero que debes hacer es escribir el proxy del servicio main al que quieras que se conecte dentro del archivo **configs/authenticator.config** (en la propiedad "MainProxy", tras borrar el valor previamente escrito).

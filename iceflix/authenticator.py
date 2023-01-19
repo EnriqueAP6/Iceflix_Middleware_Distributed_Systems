@@ -144,10 +144,9 @@ class AuthenticatorAnnouncements(IceFlix.Announcement):
 class AuthenticatorUserUpdates(IceFlix.UserUpdate):
     """Sirviente para la interfaz IceFlix.UserUpdate"""
 
-    def __init__(self,sirviente_authenticator, referencia_authenticator):
+    def __init__(self,sirviente_authenticator):
 
         self.sirviente_authenticator = sirviente_authenticator
-        self.referencia_authenticator = referencia_authenticator
         #dejo el token de administración nulo hasta saber si hay que pedirlo
         #a otro authenticator o usar el de mi archivo config
         self.token_administracion = None
@@ -198,7 +197,7 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
             #hace que el Authenticator asigne el hash al usuario determinado
             print("[AUTHENTICATOR_USERUPDATES] Recibido y aceptado delta "
             + f"newUser({user},{passwordHash},{serviceId})\n")
-            self.referencia_authenticator.addUser(user, passwordHash, self.token_administracion)
+            self.sirviente_authenticator.addUser(user, passwordHash, self.token_administracion)
         else:
             print("[AUTHENTICATOR_USERUPDATES] Recibido pero rechazado delta "
             + f"newUser({user},{passwordHash},{serviceId})\n")
@@ -213,7 +212,7 @@ class AuthenticatorUserUpdates(IceFlix.UserUpdate):
             #hace que el Authenticator borre el usuario determinado
             print("[AUTHENTICATOR_USERUPDATES] Recibido y aceptado delta "
             + f"removeUser({user},{serviceId})\n")
-            self.referencia_authenticator.removeUser(user, self.token_administracion)
+            self.sirviente_authenticator.removeUser(user, self.token_administracion)
         else:
             print("[AUTHENTICATOR_USERUPDATES] Recibido pero rechazado delta "
             + f"removeUser({user},{serviceId})\n")
@@ -629,7 +628,6 @@ class Authenticator(IceFlix.Authenticator): # pylint:disable=R0902,R0904
                             self.diccionario_tokens[user][0],self.service_id))
                         print("[AUTHENTICATOR] Eliminada la entrada: "
                         + f"{self.diccionario_tokens.pop(user)}\n")
-
         else:
             raise IceFlix.Unauthorized
 
@@ -693,8 +691,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
 
         self.proxy = adapter.addWithUUID(self.servant_authenticator)
         print(f'\n\n[AUTHENTICATOR_APP] The proxy of the authenticator is "{self.proxy}"\n\n')
-        authenticator = IceFlix.AuthenticatorPrx.uncheckedCast(self.proxy)
-        #esto ya es la referencia al authenticator
+
 
         self.service_id = str(uuid.uuid4())
         print(f'[AUTHENTICATOR_APP] The service_id of the authenticator is "{self.service_id}"\n\n')
@@ -703,9 +700,9 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
         ############################################################################
         #CREACIÓN DE CANALES , PUBLICADORES Y SUBSCRIPTORES
         ############################################################################
-        topic_manager_str_prx = "IceStorm/TopicManager -t:tcp -h localhost -p 10000"
-        topic_manager = IceStorm.TopicManagerPrx.checkedCast( # pylint:disable=E1101
-        self.communicator().stringToProxy(topic_manager_str_prx),)
+
+        topic_manager = IceStorm.TopicManagerPrx.checkedCast( #pylint:disable=E1101
+            self.communicator().propertyToProxy("IceStorm.TopicManager"))
 
         if not topic_manager:
             raise RuntimeError("[AUTHENTICATOR_APP] Invalid TopicManager proxy")
@@ -738,7 +735,7 @@ class AuthenticatorApp(Ice.Application): # pylint:disable=R0902
             topic = topic_manager.retrieve(topic_name)
 
         self.sirviente_userupdate = AuthenticatorUserUpdates(
-            self.servant_authenticator,authenticator)
+            self.servant_authenticator)
         proxy_userupdate = adapter.addWithUUID(self.sirviente_userupdate)
 
         qos = {}
